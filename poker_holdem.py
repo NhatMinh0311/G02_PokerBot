@@ -115,9 +115,7 @@ def card_list_to_str(cards):
     return ' '.join(cards)
 
 def pretty_rank(rank):
-    t = HAND_NAMES[rank[0]]
-    extras = rank[1:]
-    return f"{t} {extras}"
+    return HAND_NAMES[rank[0]]
 
 class TexasHoldemGame:
     def __init__(self):
@@ -283,17 +281,15 @@ class TexasHoldemGame:
         self.bot_chips -= bot_bet
         print(f"Bot {bot_action} với {bot_bet} chips")
         
-        # Showdown
-        print("\nSHOWDOWN:")
-        print(f"Bài của bạn: {card_list_to_str(player_hole)}")
-        print(f"Bài của bot: {card_list_to_str(bot_hole)}")
-        
         # Tính điểm và xác định người thắng
         player_rank = best_hand_rank(player_hole + community)
         bot_rank = best_hand_rank(bot_hole + community)
-        
-        print(f"\nBài của bạn: {pretty_rank(player_rank)}")
-        print(f"Bài của bot: {pretty_rank(bot_rank)}")
+
+        # Showdown
+        print("\nSHOWDOWN:")
+        print(f"Bài trên bàn: {card_list_to_str(community)}")
+        print(f"Bài của bạn: {card_list_to_str(player_hole)} {pretty_rank(player_rank)}")
+        print(f"Bài của bot: {card_list_to_str(bot_hole)} {pretty_rank(bot_rank)}")
         
         if player_rank > bot_rank:
             print("BẠN THẮNG! 🎉")
