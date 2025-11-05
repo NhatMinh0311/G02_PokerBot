@@ -254,6 +254,14 @@ class PokerMinimaxBot:
             - (1 - p_win - p_tie) * raise_amount
         )
 
+        # In ra lý do suy nghĩ của bot lên console
+        print("\n[Bot Đang Suy Nghĩ]")
+        print(f"  Xác suất thắng: {p_win:.2%}")
+        print(f"  Xác suất hòa: {p_tie:.2%}")
+        print(f"  EV Fold : {ev_fold:.2f}")
+        print(f"  EV Call : {ev_call:.2f} (với {player_bet} chips)")
+        print(f"  EV Raise: {ev_raise:.2f} (raise {raise_amount} chips)")
+
         # Chọn hành động có EV cao nhất; ưu tiên call khi hòa EV.
         best_action = 'fold'
         best_amt = 0
@@ -506,7 +514,7 @@ class TexasHoldemGame:
         print(f"Bài của bạn: {card_list_to_str(player_hole)}")
         # Hiển thị bài tẩy của bot để người chơi có thể thấy toàn bộ ván bài.
         # Nếu muốn ẩn bài của bot, thay card_list_to_str(bot_hole) bằng "?? ??".
-        print(f"Bài của bot: ?? ??")
+        print(f"Bài của bot: {card_list_to_str(bot_hole)}")
 
         # Vòng cược Pre-flop: cho phép raise và call cho đến khi cả hai khớp
         if self.play_betting_round("Pre-flop", [], bot_hole):
