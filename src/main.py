@@ -1,7 +1,8 @@
 import random
 from treys import Deck, Card, Evaluator
 from bot import bot_decision_wrapper
-
+import statistics
+from bot import BOT_LOG
 def compare_hands(cards1, cards2, community):
     """So sánh bài của hai người chơi (7 lá mỗi người = 2 riêng + 5 chung)"""
     evaluator = Evaluator()
@@ -267,19 +268,27 @@ class PokerGame:
             winner = active[0]
             print(f"{winner.name} wins the pot (${self.pot}) by default!")
             winner.money += self.pot
+             # --- log thắng/thua ---
+            if winner.is_bot:
+                BOT_LOG['rounds']['bot_wins'] += 1
+            else:
+                BOT_LOG['rounds']['player_wins'] += 1
             return
 
         result = compare_hands(self.players[0].hand, self.players[1].hand, self.community)
         if result == 1:
             print(f"{self.players[0].name} wins ${self.pot}!")
             self.players[0].money += self.pot
+            BOT_LOG['rounds']['player_wins'] += 1
         elif result == -1:
             print(f"{self.players[1].name} wins ${self.pot}!")
             self.players[1].money += self.pot
+            BOT_LOG['rounds']['bot_wins'] += 1
         else:
             print("It's a tie! Pot is split.")
             self.players[0].money += self.pot / 2
             self.players[1].money += self.pot / 2
+            BOT_LOG['rounds']['ties'] += 1
 
     def reset(self):
         for p in self.players:
@@ -359,8 +368,21 @@ class PokerGame:
             print("🤖 Bot wins overall!")
         else:
             print("🤝 It's a tie!")
-
+def print_bot_stats():
+        print("\n=== BOT STATISTICS ===")
+        print(f"Total decisions: {BOT_LOG['decisions']}")
+        print(f"Average win prob: {statistics.mean(BOT_LOG['win_probs']):.3f}")
+        print(f"Average decision time: {statistics.mean(BOT_LOG['decision_times']):.3f}s")
+        print(f"Raise rate: {BOT_LOG['raises'] / BOT_LOG['decisions']:.2%}")
+        print(f"Fold rate: {BOT_LOG['folds'] / BOT_LOG['decisions']:.2%}")
+        print(f"Call rate: {BOT_LOG['calls'] / BOT_LOG['decisions']:.2%}")
+        print(f"Check rate: {BOT_LOG['checks'] / BOT_LOG['decisions']:.2%}")
+        print(f"Bot wins: {BOT_LOG['rounds']['bot_wins']}")
+        print(f"Player wins: {BOT_LOG['rounds']['player_wins']}")
+        print(f"Ties: {BOT_LOG['rounds']['ties']}")
 
 if __name__ == "__main__":
     game = PokerGame()
     game.play_game()
+    print_bot_stats()
+

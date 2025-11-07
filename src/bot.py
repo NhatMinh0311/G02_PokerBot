@@ -2,6 +2,27 @@ import random
 import copy
 from treys import Evaluator, Deck, Card
 
+import time
+
+BOT_LOG = {
+    "decisions": 0,
+    "folds": 0,
+    "raises": 0,
+    "calls": 0,
+    "checks": 0,
+    "decision_times": [],
+    "win_probs": [],
+    "rounds": {
+        "total": 0,
+        "bot_wins": 0,
+        "player_wins": 0,
+        "ties": 0
+    }
+}
+
+# -------------------------
+# Monte Carlo evaluator setup
+
 evaluator = Evaluator()
 
 # -------------------------
@@ -218,6 +239,23 @@ def bot_decision(state, depth=2, mc_sims=150):
             best = action
 
     # map 'check' vs 'call' preference: if both possible but call slightly better, pick call
+    start = time.time()
+    win_prob = monte_carlo_win_prob(state['bot_hand'], state['community'], n_sim=mc_sims)
+    BOT_LOG["win_probs"].append(win_prob)
+
+    candidates = get_possible_actions(state, actor='bot')
+    best, best_score = None, -float('inf')
+
+    for action in candidates:
+        s2 = simulate_action(state, action, actor='bot')
+        score = minimax(s2, depth - 1, -float('inf'), float('inf'), False)
+        if score > best_score:
+            best, best_score = action, score
+
+    BOT_LOG["decisions"] += 1
+    BOT_LOG["decision_times"].append(time.time() - start)
+    BOT_LOG[best + "s"] = BOT_LOG.get(best + "s", 0) + 1
+    return best
     return best
 
 
