@@ -20,7 +20,7 @@ class Player:
     def __init__(self, name, is_bot=False):
         self.name = name
         self.is_bot = is_bot
-        self.money = 100
+        self.money = 1000
         self.hand = []
         self.folded = False
         self.current_bet = 0
@@ -71,13 +71,14 @@ class PokerGame:
         self.community.extend(self.deck.draw(1))
 
     def show_table(self, reveal_bot=False):
-        print("\n--- TABLE ---")
-        print(f"Community Cards: { Card.ints_to_pretty_str(self.community) }")
-        for p in self.players:
-            if p.is_bot and not reveal_bot:
-                print(f"{p.name}: [?? ??]")
-            else:
-                print(f"{p.name}: {Card.ints_to_pretty_str(p.hand)}")
+        return
+        # # print("\n--- TABLE ---")
+        # # print(f"Community Cards: { Card.ints_to_pretty_str(self.community) }")
+        # for p in self.players:
+        #     if p.is_bot and not reveal_bot:
+        #         # print(f"{p.name}: [?? ??]")
+        #     else:
+        #         # print(f"{p.name}: {Card.ints_to_pretty_str(p.hand)}")
 
     def isEnded(self):
         return len([p for p in self.players if not p.folded]) <= 1
@@ -99,13 +100,13 @@ class PokerGame:
 
         self.current_bet = big_blind
         self.active_player_index = (self.dealer_index + 2) % len(self.players)  # Người chơi tiếp theo sau big blind
-        print("\n--- BLINDS POSTED ---")
-        print(f"{small_blind_player.name} (Small Blind): ${small_blind}")
-        print(f"{big_blind_player.name} (Big Blind): ${big_blind}")
-        print(f"Pot = ${self.pot}")
+        # print("\n--- BLINDS POSTED ---")
+        # print(f"{small_blind_player.name} (Small Blind): ${small_blind}")
+        # print(f"{big_blind_player.name} (Big Blind): ${big_blind}")
+        # print(f"Pot = ${self.pot}")
 
     def betting_round(self):
-        print("\n=== Betting Round ===")
+        # print("\n=== Betting Round ===")
 
         # Đảm bảo current_bet mỗi người tồn tại
         for p in self.players:
@@ -127,8 +128,8 @@ class PokerGame:
                     break
                 can_check = (p.current_bet == self.current_bet)
 
-                print(f"\n--- {p.name}'s Turn ---")
-                print(f"Pot: ${self.pot} | Current Bet: ${self.current_bet}")
+                # print(f"\n--- {p.name}'s Turn ---")
+                # print(f"Pot: ${self.pot} | Current Bet: ${self.current_bet}")
 
                 
 
@@ -179,18 +180,18 @@ class PokerGame:
                     #         last_raise_idx = (start_player_idx + i) % len(self.players)
                     #         break
                     action = bot_decision_wrapper(self, p)
-                    print(f"🤖 Bot chooses: {action}")
+                    # print(f"🤖 Bot chooses: {action}")
 
                     if action == 'fold':
                         p.folded = True
-                    elif action == 'check':
-                        print("🤖 Bot checks.")
+                    # elif action == 'check':
+                        # print("🤖 Bot checks.")
                     elif action == 'call':
                         call_amount = self.current_bet - p.current_bet
                         call_amount = max(0, call_amount)
                         self.pot += p.bet(call_amount)
                         #p.current_bet = self.current_bet
-                        print(f"🤖 Bot calls ${call_amount}.")
+                        # print(f"🤖 Bot calls ${call_amount}.")
                     elif action == 'raise':
                         raise_amount = 5
                         new_total = self.current_bet + raise_amount
@@ -199,29 +200,30 @@ class PokerGame:
                         self.pot += p.bet(diff)
                         #p.current_bet = new_total
                         self.current_bet = new_total
-                        print(f"🤖 Bot raises to ${new_total}.")
+                        # print(f"🤖 Bot raises to ${new_total}.")
                         is_end_round = False
                         last_raise_idx = (start_player_idx + i) % len(self.players)
                         break
                 # ========== PLAYER ==========
                 else:
-                    if can_check and self.current_bet == 0:
-                        action = input("Your action [check/bet/fold]: ").strip().lower()
-                    elif can_check and self.current_bet > 0:
-                        action = input("Your action [check/raise/fold]: ").strip().lower()
-                    else:
-                        action = input("Your action [call/raise/fold]: ").strip().lower()
+                    # if can_check and self.current_bet == 0:
+                    #     action = input("Your action [check/bet/fold]: ").strip().lower()
+                    # elif can_check and self.current_bet > 0:
+                    #     action = input("Your action [check/raise/fold]: ").strip().lower()
+                    # else:
+                    #     action = input("Your action [call/raise/fold]: ").strip().lower()
+                    action = 'call'  # Mặc định hành động là call để tự động test
                     if action == "fold":
                         p.folded = True
-                        print("You folded.")
-                    elif can_check and action == "check":
-                        print("You check.")
+                        # print("You folded.")
+                    # elif can_check and action == "check":
+                        # print("You check.")
                     elif can_check and action == "bet":
                         bet_amount = 5
                         self.current_bet += bet_amount
                         self.pot += p.bet(bet_amount)
                         #p.current_bet += bet_amount
-                        print(f"You bet ${bet_amount}. Pot = ${self.pot}")
+                        # print(f"You bet ${bet_amount}. Pot = ${self.pot}")
                         is_end_round = False
                         last_raise_idx = (start_player_idx + i) % len(self.players)
                         break
@@ -229,7 +231,7 @@ class PokerGame:
                         call_amount = self.current_bet - p.current_bet
                         self.pot += p.bet(call_amount)
                         #p.current_bet = self.current_bet
-                        print(f"You call ${call_amount}. Pot = ${self.pot}")
+                        # print(f"You call ${call_amount}. Pot = ${self.pot}")
                     elif action == "raise":
                         raise_amount = 5
                         new_bet = self.current_bet + raise_amount
@@ -237,19 +239,19 @@ class PokerGame:
                         self.pot += p.bet(diff)
                         #p.current_bet = new_bet
                         self.current_bet = new_bet
-                        print(f"You raise to ${new_bet}. Pot = ${self.pot}")
+                        # print(f"You raise to ${new_bet}. Pot = ${self.pot}")
                         is_end_round = False
                         last_raise_idx = (start_player_idx + i) % len(self.players)
                         break
-                    else:
-                        print("Invalid action, you check/call by default.")
+                    # else:
+                    #     print("Invalid action, you check/call by default.")
             if is_end_round:
                 break
         if sum(1 for pl in self.players if not pl.folded) == 1:
-            print("💥 All others folded!")
+            # print("💥 All others folded!")
             self.showdown()
             return
-        print("\n=== Betting Round Ended ===")
+        # print("\n=== Betting Round Ended ===")
 
         # Reset vòng cược
         self.active_player_index = self.dealer_index % len(self.players)
@@ -259,13 +261,13 @@ class PokerGame:
         
 
     def showdown(self):
-        print("\n=== SHOWDOWN ===")
+        # print("\n=== SHOWDOWN ===")
         self.show_table(reveal_bot=True)
 
         active = [p for p in self.players if not p.folded]
         if len(active) == 1:
             winner = active[0]
-            print(f"{winner.name} wins the pot (${self.pot}) by default!")
+            # print(f"{winner.name} wins the pot (${self.pot}) by default!")
             winner.money += self.pot
              # --- log thắng/thua ---
             if winner.is_bot:
@@ -276,15 +278,15 @@ class PokerGame:
 
         result = compare_hands(self.players[0].hand, self.players[1].hand, self.community)
         if result == 1:
-            print(f"{self.players[0].name} wins ${self.pot}!")
+            # print(f"{self.players[0].name} wins ${self.pot}!")
             self.players[0].money += self.pot
             BOT_LOG['rounds']['player_wins'] += 1
         elif result == -1:
-            print(f"{self.players[1].name} wins ${self.pot}!")
+            # print(f"{self.players[1].name} wins ${self.pot}!")
             self.players[1].money += self.pot
             BOT_LOG['rounds']['bot_wins'] += 1
         else:
-            print("It's a tie! Pot is split.")
+            # print("It's a tie! Pot is split.")
             self.players[0].money += self.pot / 2
             self.players[1].money += self.pot / 2
             BOT_LOG['rounds']['ties'] += 1
@@ -300,9 +302,9 @@ class PokerGame:
 
     def play_round(self):
         self.reset()
-        print("\n============================")
-        print("🎲 NEW ROUND STARTS")
-        print("============================")
+        # print("\n============================")
+        # print("🎲 NEW ROUND STARTS")
+        # print("============================")
 
         # --- Small & Big Blind ---
         self.post_blinds()
@@ -310,7 +312,7 @@ class PokerGame:
         self.show_table()
 
         # --- Pre-Flop ---
-        print("\n=== PRE-FLOP ===")
+        # print("\n=== PRE-FLOP ===")
         self.betting_round()
         if self.isEnded():
             self.dealer_index += 1
@@ -318,7 +320,7 @@ class PokerGame:
 
         # --- Flop ---
         self.deal_flop()
-        print("\n=== FLOP ===")
+        # print("\n=== FLOP ===")
         self.show_table()
         self.betting_round()
         if self.isEnded():
@@ -327,7 +329,7 @@ class PokerGame:
 
         # --- Turn ---
         self.deal_turn()
-        print("\n=== TURN ===")
+        # print("\n=== TURN ===")
         self.show_table()
         self.betting_round()
         if self.isEnded():
@@ -336,7 +338,7 @@ class PokerGame:
 
         # --- River ---
         self.deal_river()
-        print("\n=== RIVER ===")
+        # print("\n=== RIVER ===")
         self.show_table()
         self.betting_round()
         if self.isEnded():
@@ -351,12 +353,14 @@ class PokerGame:
 
 
     def play_game(self):
-        print("=== TEXAS HOLD'EM POKER ===")
-        while all(p.money > 0 for p in self.players):
+        # print("=== TEXAS HOLD'EM POKER ===")
+        i = 0
+        while all(p.money > 0 for p in self.players) and i < 50:
             self.play_round()
-            cont = input("\nPlay another round? (y/n): ").strip().lower()
-            if cont != "y":
-                break
+            # cont = input("\nPlay another round? (y/n): ").strip().lower()
+            # if cont != "y":
+            #     break
+            i += 1
 
         print("\n=== GAME OVER ===")
         for p in self.players:
@@ -372,11 +376,19 @@ def print_bot_stats():
         print(f"Total decisions: {BOT_LOG['decisions']}")
         print(f"Average win prob: {statistics.mean(BOT_LOG['win_probs']):.3f}")
         print(f"Average decision time: {statistics.mean(BOT_LOG['decision_times']):.3f}s")
+        print(f"Median decision time: {statistics.median(BOT_LOG['decision_times']):.3f}s")
+        print(f"Max decision time: {max(BOT_LOG['decision_times']):.3f}s")
+        print(f"Min decision time: {min(BOT_LOG['decision_times']):.3f}s")
         print(f"Raise rate: {BOT_LOG['raises'] / BOT_LOG['decisions']:.2%}")
+        print(f"Raise count: {BOT_LOG['raises']}")
         print(f"Fold rate: {BOT_LOG['folds'] / BOT_LOG['decisions']:.2%}")
+        print(f"Fold count: {BOT_LOG['folds']}")
+        print(f"Call count: {BOT_LOG['calls']}")
         print(f"Call rate: {BOT_LOG['calls'] / BOT_LOG['decisions']:.2%}")
         print(f"Check rate: {BOT_LOG['checks'] / BOT_LOG['decisions']:.2%}")
+        print(f"Check count: {BOT_LOG['checks']}")
         print(f"Bot wins: {BOT_LOG['rounds']['bot_wins']}")
+        # print(f"bot win rate: {BOT_LOG['rounds']['bot_wins'] / BOT_LOG['rounds']['total']:.2%}")
         print(f"Player wins: {BOT_LOG['rounds']['player_wins']}")
         print(f"Ties: {BOT_LOG['rounds']['ties']}")
 

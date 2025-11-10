@@ -28,7 +28,7 @@ evaluator = Evaluator()
 # -------------------------
 # Monte Carlo win probability
 # -------------------------
-def monte_carlo_win_prob(bot_hand, community, n_sim=200):
+def monte_carlo_win_prob(bot_hand, community, n_sim=800):
     """
     bot_hand: list of 2 treys-int cards
     community: list of 0..5 treys-int cards (current community on table)
@@ -83,7 +83,7 @@ def get_possible_actions(state, actor='bot'):
 
     if state['current_bet'] == 0:
         # no bet currently
-        actions += ['check', 'raise']  # fold is allowed but unusual
+        actions += ['check', 'raise', 'fold']  # fold is allowed but unusual
     else:
         # there is a bet to match
         actions += ['call', 'raise', 'fold']
@@ -178,46 +178,78 @@ def evaluate_state(state, mc_sims=100):
 # MiniMax with alpha-beta
 # -------------------------
 def minimax(state, depth, alpha, beta, maximizing_player):
-    # terminal check: fold winner
-    if state.get('terminal', False) or depth == 0:
+    """
+    Drop-in replacement cho minimax của bạn:
+    - Nếu terminal: trả về utility tức thời dựa trên winner.
+    - Nếu depth == 0: gọi evaluate_state(state).
+    - Hành động hợp lệ: loại 'fold' khi chưa có bet (current_bet == 0).
+    - Move ordering: ưu tiên raise > call > check > fold khi maximizing (ngược lại khi minimizing).
+    """
+    # --- terminal utility ---
+    def terminal_utility(s):
+        # Có thể scale theo pot nếu muốn: return s['pot'] nếu bot thắng, -s['pot'] nếu thua
+        return 1.0 if s.get('winner') == 'bot' else -1.0
+
+    # 1) Kết thúc ván?
+    if state.get('terminal', False):
+        return terminal_utility(state)
+
+    # 2) Hết độ sâu?
+    if depth == 0:
         return evaluate_state(state)
 
-    if maximizing_player:
-        max_eval = -float('inf')
-        for action in get_possible_actions(state, actor='bot'):
-            new_state = simulate_action(state, action, actor='bot')
-            # If fold terminal, evaluate directly
-            if new_state.get('terminal'):
-                eval_v = evaluate_state(new_state)
-            else:
-                eval_v = minimax(new_state, depth - 1, alpha, beta, False)
-            max_eval = max(max_eval, eval_v)
-            alpha = max(alpha, eval_v)
-            if beta <= alpha:
-                break
-        return max_eval
-    else:
-        min_eval = float('inf')
-        # Opponent is modeled as adversary — tries to minimize bot's score.
-        # For speed, we can limit opponent actions to plausible subset
-        for action in get_possible_actions(state, actor='opp'):
-            new_state = simulate_action(state, action, actor='opp')
-            if new_state.get('terminal'):
-                eval_v = evaluate_state(new_state)
-            else:
-                eval_v = minimax(new_state, depth - 1, alpha, beta, True)
-            min_eval = min(min_eval, eval_v)
-            beta = min(beta, eval_v)
-            if beta <= alpha:
-                break
-        return min_eval
+    # 3) Lấy actor hiện tại & action hợp lệ
+    actor = 'bot' if maximizing_player else 'opp'
+    actions = get_possible_actions(state, actor=actor)
 
+    # Không cho fold nếu chưa có bet
+    if state.get('current_bet', 0) == 0:
+        actions = [a for a in actions if a != 'fold']
+
+    # Nếu không còn action hợp lệ, coi như lá đánh giá
+    if not actions:
+        return evaluate_state(state)
+
+    # 4) Move ordering (đơn giản)
+    order = {'raise': 3, 'call': 2, 'check': 1, 'fold': 0}
+    actions.sort(key=lambda a: order.get(a, 0), reverse=maximizing_player)
+
+    # 5) Duyệt cây + alpha-beta
+    if maximizing_player:
+        value = float('-inf')
+        for a in actions:
+            nxt = simulate_action(state, a, actor=actor)
+            if nxt.get('terminal', False):
+                child_val = terminal_utility(nxt)
+            else:
+                child_val = minimax(nxt, depth - 1, alpha, beta, False)
+            if child_val > value:
+                value = child_val
+            if value > alpha:
+                alpha = value
+            if beta <= alpha:
+                break
+        return value
+    else:
+        value = float('inf')
+        for a in actions:
+            nxt = simulate_action(state, a, actor=actor)
+            if nxt.get('terminal', False):
+                child_val = terminal_utility(nxt)
+            else:
+                child_val = minimax(nxt, depth - 1, alpha, beta, True)
+            if child_val < value:
+                value = child_val
+            if value < beta:
+                beta = value
+            if beta <= alpha:
+                break
+        return value
 
 # -------------------------
 # Main decision wrapper
 # -------------------------
-def bot_decision(state, depth=3, mc_sims=150):
-    start = time.time()
+def bot_decision(state, depth=3, mc_sims=800):
     """
     state: dict with fields:
       - bot_hand (list ints), community (list ints), pot, current_bet,
@@ -240,6 +272,7 @@ def bot_decision(state, depth=3, mc_sims=150):
             best = action
 
     # map 'check' vs 'call' preference: if both possible but call slightly better, pick call
+    start = time.time()
     win_prob = monte_carlo_win_prob(state['bot_hand'], state['community'], n_sim=mc_sims)
     BOT_LOG["win_probs"].append(win_prob)
 
@@ -255,6 +288,7 @@ def bot_decision(state, depth=3, mc_sims=150):
     BOT_LOG["decisions"] += 1
     BOT_LOG["decision_times"].append(time.time() - start)
     BOT_LOG[best + "s"] = BOT_LOG.get(best + "s", 0) + 1
+    return best
     return best
 
 
