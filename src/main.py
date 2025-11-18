@@ -162,8 +162,6 @@ class PokerGame:
                 # ========== PLAYER ==========
                 else:
                     if can_check and self.current_bet == 0:
-                        action = input("Your action [check/bet/fold]: ").strip().lower()
-                    elif can_check and self.current_bet > 0:
                         action = input("Your action [check/raise/fold]: ").strip().lower()
                     else:
                         action = input("Your action [call/raise/fold]: ").strip().lower()
@@ -172,15 +170,6 @@ class PokerGame:
                         print("You folded.")
                     elif can_check and action == "check":
                         print("You check.")
-                    elif can_check and action == "bet":
-                        bet_amount = 5
-                        self.current_bet += bet_amount
-                        self.pot += p.bet(bet_amount)
-                        #p.current_bet += bet_amount
-                        print(f"You bet ${bet_amount}. Pot = ${self.pot}")
-                        is_end_round = False
-                        last_raise_idx = (start_player_idx + i) % len(self.players)
-                        break
                     elif not can_check and action == "call":
                         call_amount = self.current_bet - p.current_bet
                         self.pot += p.bet(call_amount)
