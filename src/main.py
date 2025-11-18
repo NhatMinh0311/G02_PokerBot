@@ -1,6 +1,6 @@
 import random
 from treys import Deck, Card, Evaluator
-from botwtminimax import bot_decision_wrapper,BOT_LOG
+from bot2 import bot_decision_wrapper,BOT_LOG
 import statistics
 def compare_hands(cards1, cards2, community):
     """So sánh bài của hai người chơi (7 lá mỗi người = 2 riêng + 5 chung)"""
@@ -134,50 +134,6 @@ class PokerGame:
 
                 # ========== BOT ==========
                 if p.is_bot:
-                    # roll = random.random()
-                    # if can_check:
-                    #     if roll < 0.1:
-                    #         p.folded = True
-                    #         print("🤖 Bot folds.")
-                    #     elif roll < 0.3:
-                    #         if self.current_bet == 0:
-                    #             bet_amount = 5
-                    #             self.current_bet += bet_amount
-                    #             self.pot += p.bet(bet_amount)
-                    #             print(f"🤖 Bot bets ${bet_amount}.")
-                    #         else:
-                    #             raise_amount = 5
-                    #             new_bet = self.current_bet + raise_amount
-                    #             diff = new_bet - p.current_bet
-                    #             self.pot += p.bet(diff)
-                    #             self.current_bet = new_bet
-                    #             print(f"🤖 Bot raises to ${new_bet}.")
-                    #         is_end_round = False
-                    #         last_raise_idx = (start_player_idx + i) % len(self.players)
-                    #         break
-                    #     else:
-                    #         print("🤖 Bot checks.")
-                    # else:
-                    #     # Bot phải phản ứng với bet
-                    #     if roll < 0.2:
-                    #         p.folded = True
-                    #         print("🤖 Bot folds.")
-                    #     elif roll < 0.8:
-                    #         call_amount = self.current_bet - p.current_bet
-                    #         self.pot += p.bet(call_amount)
-                    #         #p.current_bet = self.current_bet
-                    #         print(f"🤖 Bot calls ${call_amount}.")
-                    #     else:
-                    #         raise_amount = 5
-                    #         new_bet = self.current_bet + raise_amount
-                    #         diff = new_bet - p.current_bet
-                    #         self.pot += p.bet(diff)
-                    #         #p.current_bet = new_bet
-                    #         self.current_bet = new_bet
-                    #         print(f"🤖 Bot raises to ${new_bet}.")
-                    #         is_end_round = False
-                    #         last_raise_idx = (start_player_idx + i) % len(self.players)
-                    #         break
                     action = bot_decision_wrapper(self, p)
                     print(f"🤖 Bot chooses: {action}")
 
@@ -231,7 +187,8 @@ class PokerGame:
                         #p.current_bet = self.current_bet
                         print(f"You call ${call_amount}. Pot = ${self.pot}")
                     elif action == "raise":
-                        raise_amount = 5
+                        print(f"Enter raise amount : ", end="")
+                        raise_amount = int(input().strip())
                         new_bet = self.current_bet + raise_amount
                         diff = new_bet - p.current_bet
                         self.pot += p.bet(diff)

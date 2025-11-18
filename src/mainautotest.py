@@ -1,6 +1,6 @@
 import random
 from treys import Deck, Card, Evaluator
-from botwtminimax import bot_decision_wrapper,BOT_LOG
+from bot2 import bot_decision_wrapper,BOT_LOG
 import statistics
 def compare_hands(cards1, cards2, community):
     """So sánh bài của hai người chơi (7 lá mỗi người = 2 riêng + 5 chung)"""
@@ -17,10 +17,10 @@ def compare_hands(cards1, cards2, community):
 # Player & Game Classes
 # -----------------------------
 class Player:
-    def __init__(self, name, is_bot=False):
+    def __init__(self, name, money=1000, is_bot=False):
         self.name = name
         self.is_bot = is_bot
-        self.money = 1000
+        self.money = money
         self.hand = []
         self.folded = False
         self.current_bet = 0
@@ -212,7 +212,8 @@ class PokerGame:
                     #     action = input("Your action [check/raise/fold]: ").strip().lower()
                     # else:
                     #     action = input("Your action [call/raise/fold]: ").strip().lower()
-                    action = 'call'  # Mặc định hành động là call để tự động test
+                    import numpy as np
+                    action = np.random.choice(['call', 'raise'])  # Mặc định hành động là call để tự động test
                     if action == "fold":
                         p.folded = True
                         # print("You folded.")
@@ -352,15 +353,16 @@ class PokerGame:
         self.dealer_index += 1
 
 
-    def play_game(self):
+    def play_game(self, max_rounds=50):
         # print("=== TEXAS HOLD'EM POKER ===")
         i = 0
-        while all(p.money > 0 for p in self.players) and i < 50:
+        while all(p.money > 0 for p in self.players) and i < max_rounds:
             self.play_round()
             # cont = input("\nPlay another round? (y/n): ").strip().lower()
             # if cont != "y":
             #     break
             i += 1
+            print(f"{i}/{max_rounds} rounds played.")
 
         print("\n=== GAME OVER ===")
         for p in self.players:

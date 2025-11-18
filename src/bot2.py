@@ -82,11 +82,11 @@ def get_possible_actions(state, actor='bot'):
         my_cur = state['opp_current_bet']
 
     if state['current_bet'] == 0:
-        # no bet currently
-        actions += ['check', 'raise', 'fold']  # fold is allowed but unusual
+        # no bet currently - only check or raise, NO FOLD when no one has bet
+        actions += ['check', 'raise']
     else:
-        # there is a bet to match
-        actions += ['call', 'raise', 'fold']
+        # there is a bet to match - can fold, call, or raise
+        actions += ['fold', 'call', 'raise']
     return actions
 
 
@@ -154,6 +154,7 @@ def evaluate_state(state, mc_sims=100):
     A heuristic evaluation:
     - Use monte carlo win prob as base
     - Combine with money factors and pot odds
+    - Compare with fold value (losing current bet)
     Returns a numeric score (higher better for bot)
     """
     bot_hand = state['bot_hand']
@@ -163,14 +164,27 @@ def evaluate_state(state, mc_sims=100):
 
     # Pot odds / risk metric: expected gain if call now roughly win_prob * pot - (1-win_prob)*call_amount
     to_call = max(0, state['current_bet'] - state['bot_current_bet'])
-    # approximate expected value of calling (normalized)
-    ev_call = win_prob * state['pot'] - (1 - win_prob) * to_call
+    
+    # Explicit fold value: if we fold now, we lose what we've already bet this round
+    fold_value = -state['bot_current_bet'] * 0.5  # Lose invested chips at this stage
+    
+    # Expected value of calling 
+    if to_call > 0:
+        ev_call = win_prob * (state['pot'] + to_call) - (1 - win_prob) * to_call
+    else:
+        ev_call = win_prob * state['pot']  # No cost to call if already matched
 
     # money balance factor
     money_factor = state['bot_money'] / (state['bot_money'] + state['opp_money'] + 1)
 
-    # combine into score
+    # combine into score, but floor it vs fold_value
     score = 0.6 * win_prob + 0.3 * (ev_call / (state['pot'] + 1)) + 0.1 * money_factor
+    
+    # If EV is really bad (negative) and fold preserves chips, prefer fold
+    if ev_call < -2 and to_call > state['bot_money'] * 0.3:
+        # If calling would be very expensive relative to chip stack and negative EV, lean fold
+        score = max(score, fold_value + 2)  # Make fold more attractive
+    
     return score
 
 
@@ -187,8 +201,13 @@ def minimax(state, depth, alpha, beta, maximizing_player):
     """
     # --- terminal utility ---
     def terminal_utility(s):
-        # Có thể scale theo pot nếu muốn: return s['pot'] nếu bot thắng, -s['pot'] nếu thua
-        return 1.0 if s.get('winner') == 'bot' else -1.0
+        # When someone folds, the other wins the current pot
+        # Return value normalized: losing all pot is -pot, winning pot is +pot
+        # But we also scale by remaining money to encourage preserving chips
+        if s.get('winner') == 'bot':
+            return float(s['pot']) * 1.0  # Bot wins: gain pot
+        else:
+            return float(-s['pot']) * 0.5  # Bot loses: lose pot (but scaled down since opp wins it all anyway)
 
     # 1) Kết thúc ván?
     if state.get('terminal', False):
@@ -201,10 +220,6 @@ def minimax(state, depth, alpha, beta, maximizing_player):
     # 3) Lấy actor hiện tại & action hợp lệ
     actor = 'bot' if maximizing_player else 'opp'
     actions = get_possible_actions(state, actor=actor)
-
-    # Không cho fold nếu chưa có bet
-    if state.get('current_bet', 0) == 0:
-        actions = [a for a in actions if a != 'fold']
 
     # Nếu không còn action hợp lệ, coi như lá đánh giá
     if not actions:
@@ -317,5 +332,5 @@ def bot_decision_wrapper(game, bot_player):
         'terminal': False,
     }
 
-    action = bot_decision(state, depth=2, mc_sims=120)
+    action = bot_decision(state, depth=5, mc_sims=120)
     return action
