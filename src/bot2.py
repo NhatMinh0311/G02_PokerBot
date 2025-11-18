@@ -189,122 +189,124 @@ def evaluate_state(state, mc_sims=100):
 
 
 # -------------------------
-# MiniMax with alpha-beta
+# EV-based decision logic (replaces minimax)
 # -------------------------
-def minimax(state, depth, alpha, beta, maximizing_player):
+def calculate_action_ev(action, state):
     """
-    Drop-in replacement cho minimax của bạn:
-    - Nếu terminal: trả về utility tức thời dựa trên winner.
-    - Nếu depth == 0: gọi evaluate_state(state).
-    - Hành động hợp lệ: loại 'fold' khi chưa có bet (current_bet == 0).
-    - Move ordering: ưu tiên raise > call > check > fold khi maximizing (ngược lại khi minimizing).
+    Calculate expected value of an action WITHOUT deep minimax search.
+    Uses: win probability + pot odds + bankroll awareness.
+    
+    Returns: (action, ev_value) for comparison
     """
-    # --- terminal utility ---
-    def terminal_utility(s):
-        # When someone folds, the other wins the current pot
-        # Return value normalized: losing all pot is -pot, winning pot is +pot
-        # But we also scale by remaining money to encourage preserving chips
-        if s.get('winner') == 'bot':
-            return float(s['pot']) * 1.0  # Bot wins: gain pot
+    to_call = max(0, state['current_bet'] - state['bot_current_bet'])
+    pot = state['pot']
+    win_prob = monte_carlo_win_prob(state['bot_hand'], state['community'], n_sim=200)
+    
+    if action == 'fold':
+        # EV of fold = 0 (you give up, lose what you bet this round)
+        # Small penalty for the sunk cost/opportunity
+        return -state['bot_current_bet'] * 0.15
+    
+    elif action == 'check':
+        # EV of check = 0 (no money changes) + potential upside
+        # Favorable if win_prob is decent and no bet to match
+        if to_call == 0:
+            return win_prob * 0.5  # Slight positive if we check and likely win
         else:
-            return float(-s['pot']) * 0.5  # Bot loses: lose pot (but scaled down since opp wins it all anyway)
-
-    # 1) Kết thúc ván?
-    if state.get('terminal', False):
-        return terminal_utility(state)
-
-    # 2) Hết độ sâu?
-    if depth == 0:
-        return evaluate_state(state)
-
-    # 3) Lấy actor hiện tại & action hợp lệ
-    actor = 'bot' if maximizing_player else 'opp'
-    actions = get_possible_actions(state, actor=actor)
-
-    # Nếu không còn action hợp lệ, coi như lá đánh giá
-    if not actions:
-        return evaluate_state(state)
-
-    # 4) Move ordering (đơn giản)
-    order = {'raise': 3, 'call': 2, 'check': 1, 'fold': 0}
-    actions.sort(key=lambda a: order.get(a, 0), reverse=maximizing_player)
-
-    # 5) Duyệt cây + alpha-beta
-    if maximizing_player:
-        value = float('-inf')
-        for a in actions:
-            nxt = simulate_action(state, a, actor=actor)
-            if nxt.get('terminal', False):
-                child_val = terminal_utility(nxt)
-            else:
-                child_val = minimax(nxt, depth - 1, alpha, beta, False)
-            if child_val > value:
-                value = child_val
-            if value > alpha:
-                alpha = value
-            if beta <= alpha:
-                break
-        return value
-    else:
-        value = float('inf')
-        for a in actions:
-            nxt = simulate_action(state, a, actor=actor)
-            if nxt.get('terminal', False):
-                child_val = terminal_utility(nxt)
-            else:
-                child_val = minimax(nxt, depth - 1, alpha, beta, True)
-            if child_val < value:
-                value = child_val
-            if value < beta:
-                beta = value
-            if beta <= alpha:
-                break
-        return value
+            return -float('inf')  # Can't check if there's a bet to match
+    
+    elif action == 'call':
+        # EV of call = win_prob * (pot + to_call) - (1 - win_prob) * to_call
+        # Simplified: win_prob * total_pot - (1 - win_prob) * call_cost
+        if to_call == 0:
+            return 0  # Calling when matched = neutral
+        
+        ev = win_prob * (pot + to_call) - (1 - win_prob) * to_call
+        
+        # Bankroll preservation: if call is expensive relative to stack, reduce EV
+        if state['bot_money'] > 0:
+            call_ratio = to_call / state['bot_money']
+            if call_ratio > 0.20:  # Calling more than 20% of remaining stack is risky
+                risk_penalty = call_ratio * 15  # Penalty for high-risk calls
+                ev -= risk_penalty
+            if call_ratio > 0.40:  # Calling >40% is very risky
+                ev -= 40  # Severe penalty
+        
+        # Pot odds check: only call weak hands if pot odds are excellent
+        if ev < 2 and win_prob < 0.40:
+            ev -= 5  # Slight penalty for marginal calls with weak hands
+        
+        return ev
+    
+    elif action == 'raise':
+        # EV of raise = win_prob * (pot + 2*raise_amount) - (1 - win_prob) * raise_amount
+        raise_amount = DEFAULT_RAISE
+        new_total = state['current_bet'] + raise_amount
+        if state['bot_current_bet'] >= new_total:
+            return -float('inf')  # Can't raise if already bet that much
+        
+        diff_to_raise = new_total - state['bot_current_bet']
+        if diff_to_raise > state['bot_money']:
+            return -float('inf')  # Can't raise with insufficient chips
+        
+        ev = win_prob * (pot + diff_to_raise + DEFAULT_RAISE) - (1 - win_prob) * diff_to_raise
+        
+        # STRONG penalty for raising with weak hands
+        # Only raise with >60% win probability to avoid bluffing too much
+        if win_prob < 0.60:
+            ev -= 20  # Big penalty for weak raises
+        
+        # Additional penalty if already significant money in pot
+        if to_call > 0 and win_prob < 0.65:
+            ev -= 15  # Don't re-raise with marginal hands
+        
+        return ev
+    
+    return -float('inf')
 
 # -------------------------
 # Main decision wrapper
 # -------------------------
 def bot_decision(state, depth=3, mc_sims=800):
     """
-    state: dict with fields:
-      - bot_hand (list ints), community (list ints), pot, current_bet,
-      - bot_money, opp_money, bot_current_bet, opp_current_bet
-    Returns one of: 'fold','check','call','raise'
+    NEW EV-BASED DECISION (replaces minimax):
+    
+    Makes decisions based on:
+    1. Monte-Carlo win probability estimation
+    2. Pot odds calculation (EV of each action)
+    3. Bankroll preservation (avoid risking too much)
+    4. Stack-aware bet sizing
+    
+    This bot will:
+    - FOLD bad hands with negative EV
+    - CALL medium hands with positive EV
+    - RAISE strong hands with high win probability
+    - CHECK when no bet and decent hand strength
     """
-    # compute candidate actions
-    candidates = get_possible_actions(state, actor='bot')
-    best = None
-    best_score = -float('inf')
-
-    # attach montecarlo sims parameter to evaluate_state via closure if needed
-    for action in candidates:
-        s2 = simulate_action(state, action, actor='bot')
-        # after simulate, run minimax (opponent to move)
-        score = minimax(s2, depth - 1, -float('inf'), float('inf'), False)
-        # tie-breaker prefer aggressive actions if scores close
-        if score > best_score:
-            best_score = score
-            best = action
-
-    # map 'check' vs 'call' preference: if both possible but call slightly better, pick call
     start = time.time()
+    
+    # Calculate win probability once
     win_prob = monte_carlo_win_prob(state['bot_hand'], state['community'], n_sim=mc_sims)
     BOT_LOG["win_probs"].append(win_prob)
-
+    
+    # Get available actions
     candidates = get_possible_actions(state, actor='bot')
-    best, best_score = None, -float('inf')
-
+    
+    # Calculate EV for each candidate action
+    action_evs = {}
     for action in candidates:
-        s2 = simulate_action(state, action, actor='bot')
-        score = minimax(s2, depth - 1, -float('inf'), float('inf'), False)
-        if score > best_score:
-            best, best_score = action, score
-
+        ev = calculate_action_ev(action, state)
+        action_evs[action] = ev
+    
+    # Choose action with highest EV
+    best_action = max(action_evs.items(), key=lambda x: x[1])[0]
+    
+    # Log statistics
     BOT_LOG["decisions"] += 1
     BOT_LOG["decision_times"].append(time.time() - start)
-    BOT_LOG[best + "s"] = BOT_LOG.get(best + "s", 0) + 1
-    return best
-    return best
+    BOT_LOG[best_action + "s"] = BOT_LOG.get(best_action + "s", 0) + 1
+    
+    return best_action
 
 
 # -------------------------
@@ -332,5 +334,5 @@ def bot_decision_wrapper(game, bot_player):
         'terminal': False,
     }
 
-    action = bot_decision(state, depth=5, mc_sims=120)
+    action = bot_decision(state, depth=10, mc_sims=120)
     return action

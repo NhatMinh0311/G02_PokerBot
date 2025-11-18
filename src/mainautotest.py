@@ -24,6 +24,7 @@ class Player:
         self.hand = []
         self.folded = False
         self.current_bet = 0
+        self.statistics = {'fold':0, 'call':0, 'raise':0}
 
     def reset(self):
         self.hand = []
@@ -35,11 +36,16 @@ class Player:
         self.money -= amount
         self.current_bet += amount
         return amount
+    
+    def show(self):
+        print(self.statistics)
+    
+
 
 
 class PokerGame:
-    def __init__(self):
-        self.players = [Player("You"), Player("Bot", is_bot=True)]
+    def __init__(self, players):
+        self.players = players
         self.deck = None
         self.community = []
         self.pot = 0
@@ -206,46 +212,24 @@ class PokerGame:
                         break
                 # ========== PLAYER ==========
                 else:
-                    # if can_check and self.current_bet == 0:
-                    #     action = input("Your action [check/bet/fold]: ").strip().lower()
-                    # elif can_check and self.current_bet > 0:
-                    #     action = input("Your action [check/raise/fold]: ").strip().lower()
-                    # else:
-                    #     action = input("Your action [call/raise/fold]: ").strip().lower()
                     import numpy as np
-                    action = np.random.choice(['call', 'raise'])  # Mặc định hành động là call để tự động test
+                    action = np.random.choice(['call', 'fold', 'raise'])  # Random player action for automated testing
+                    
                     if action == "fold":
                         p.folded = True
-                        # print("You folded.")
-                    # elif can_check and action == "check":
-                        # print("You check.")
-                    elif can_check and action == "bet":
-                        bet_amount = 5
-                        self.current_bet += bet_amount
-                        self.pot += p.bet(bet_amount)
-                        #p.current_bet += bet_amount
-                        # print(f"You bet ${bet_amount}. Pot = ${self.pot}")
-                        is_end_round = False
-                        last_raise_idx = (start_player_idx + i) % len(self.players)
-                        break
-                    elif not can_check and action == "call":
-                        call_amount = self.current_bet - p.current_bet
-                        self.pot += p.bet(call_amount)
-                        #p.current_bet = self.current_bet
-                        # print(f"You call ${call_amount}. Pot = ${self.pot}")
                     elif action == "raise":
                         raise_amount = 5
                         new_bet = self.current_bet + raise_amount
                         diff = new_bet - p.current_bet
                         self.pot += p.bet(diff)
-                        #p.current_bet = new_bet
                         self.current_bet = new_bet
-                        # print(f"You raise to ${new_bet}. Pot = ${self.pot}")
                         is_end_round = False
                         last_raise_idx = (start_player_idx + i) % len(self.players)
                         break
-                    # else:
-                    #     print("Invalid action, you check/call by default.")
+                    elif action == "call":
+                        call_amount = self.current_bet - p.current_bet
+                        call_amount = max(0, call_amount)
+                        self.pot += p.bet(call_amount)
             if is_end_round:
                 break
         if sum(1 for pl in self.players if not pl.folded) == 1:
@@ -368,9 +352,9 @@ class PokerGame:
         for p in self.players:
             print(f"{p.name}: ${p.money}")
         if self.players[0].money > self.players[1].money:
-            print("🎉 You win overall!")
+            print(f">>>>>>>>>>>>{self.players[0].name} wins overall!<<<<<<<<<<")
         elif self.players[0].money < self.players[1].money:
-            print("🤖 Bot wins overall!")
+            print(f">>>>>>>>>>>>{self.players[1].name} wins overall!<<<<<<<<<<")
         else:
             print("🤝 It's a tie!")
 def print_bot_stats():
@@ -395,7 +379,7 @@ def print_bot_stats():
         print(f"Ties: {BOT_LOG['rounds']['ties']}")
 
 if __name__ == "__main__":
-    game = PokerGame()
-    game.play_game()
+    game = PokerGame(players=[Player("Bot1", is_bot=False), Player("Bot2", is_bot=True)])
+    game.play_game(max_rounds=500)
     print_bot_stats()
 
