@@ -379,7 +379,7 @@ def print_bot_stats():
         print(f"Ties: {BOT_LOG['rounds']['ties']}")
 
 if __name__ == "__main__":
-    game = PokerGame(players=[Player("Bot1", is_bot=False), Player("Bot2", is_bot=True)])
+    game = PokerGame(players=[Player("Bot1", is_bot=True), Player("Bot2", is_bot=True)])
     game.play_game(max_rounds=500)
     print_bot_stats()
 
