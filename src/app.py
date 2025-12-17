@@ -2,7 +2,7 @@ import random
 import statistics
 import pygame
 from treys import Deck, Card, Evaluator
-from bot import bot_decision_wrapper, BOT_LOG
+from bot import bot_decision_wrapper, BOT_LOG_TEMPLATE
 
 # =========================
 # Pygame INIT
@@ -810,9 +810,9 @@ class PokerGame:
             self.spawn_win_particles(winner_index)
 
             if winner.is_bot:
-                BOT_LOG["rounds"]["bot_wins"] += 1
+                BOT_LOG_TEMPLATE["rounds"]["bot_wins"] += 1
             else:
-                BOT_LOG["rounds"]["player_wins"] += 1
+                BOT_LOG_TEMPLATE["rounds"]["player_wins"] += 1
 
             self._round_end_pause(msg)
             return
@@ -829,18 +829,18 @@ class PokerGame:
         if res == 1:
             msg = f"You win ${self.pot}!"
             self.players[0].money += self.pot
-            BOT_LOG["rounds"]["player_wins"] += 1
+            BOT_LOG_TEMPLATE["rounds"]["player_wins"] += 1
             winner_index = 0
         elif res == -1:
             msg = f"Bot wins ${self.pot}!"
             self.players[1].money += self.pot
-            BOT_LOG["rounds"]["bot_wins"] += 1
+            BOT_LOG_TEMPLATE["rounds"]["bot_wins"] += 1
             winner_index = 1
         else:
             msg = "It's a tie! Pot is split."
             self.players[0].money += self.pot / 2
             self.players[1].money += self.pot / 2
-            BOT_LOG["rounds"]["ties"] += 1
+            BOT_LOG_TEMPLATE["rounds"]["ties"] += 1
 
         self.log(msg, type="win")
         safe_play(SND_WIN)

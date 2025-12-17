@@ -217,9 +217,7 @@ def minimax(state, depth, alpha, beta, maximizing_player):
 # -------------------------
 # Main decision wrapper
 # -------------------------
-def bot_decision(state, depth=3, mc_sims=150, log=None):
-    if log is None:
-        log = BOT_LOG_TEMPLATE
+def bot_decision(state, depth=3, mc_sims=150):
     start = time.time()
     """
     state: dict with fields:
@@ -244,7 +242,7 @@ def bot_decision(state, depth=3, mc_sims=150, log=None):
 
     # map 'check' vs 'call' preference: if both possible but call slightly better, pick call
     win_prob = monte_carlo_win_prob(state['bot_hand'], state['community'], n_sim=mc_sims)
-    log["win_probs"].append(win_prob)
+    BOT_LOG_TEMPLATE["win_probs"].append(win_prob)
 
     candidates = get_possible_actions(state, actor='bot')
     best, best_score = None, -float('inf')
@@ -255,9 +253,9 @@ def bot_decision(state, depth=3, mc_sims=150, log=None):
         if score > best_score:
             best, best_score = action, score
 
-    log["decisions"] += 1
-    log["decision_times"].append(time.time() - start)
-    log[best + "s"] = log.get(best + "s", 0) + 1
+    BOT_LOG_TEMPLATE["decisions"] += 1
+    BOT_LOG_TEMPLATE["decision_times"].append(time.time() - start)
+    BOT_LOG_TEMPLATE[best + "s"] = BOT_LOG_TEMPLATE.get(best + "s", 0) + 1
     return best
 
 
@@ -286,5 +284,5 @@ def bot_decision_wrapper(game, bot_player):
         'terminal': False,
     }
 
-    action = bot_decision(state, depth=bot_player.depth, mc_sims=bot_player.mc_sims, log=bot_player.bot_log)
+    action = bot_decision(state, depth=2, mc_sims=120)
     return action
