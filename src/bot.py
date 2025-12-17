@@ -2,6 +2,27 @@ import random
 import copy
 from treys import Evaluator, Deck, Card
 
+import time
+
+BOT_LOG_TEMPLATE = {
+    "decisions": 0,
+    "folds": 0,
+    "raises": 0,
+    "calls": 0,
+    "checks": 0,
+    "decision_times": [],
+    "win_probs": [],
+    "rounds": {
+        "total": 0,
+        "bot_wins": 0,
+        "player_wins": 0,
+        "ties": 0
+    }
+}
+
+# -------------------------
+# Monte Carlo evaluator setup
+
 evaluator = Evaluator()
 
 # -------------------------
@@ -62,7 +83,7 @@ def get_possible_actions(state, actor='bot'):
 
     if state['current_bet'] == 0:
         # no bet currently
-        actions += ['check', 'raise', 'fold']  # fold is allowed but unusual
+        actions += ['check', 'raise']  # fold is allowed but unusual
     else:
         # there is a bet to match
         actions += ['call', 'raise', 'fold']
@@ -176,26 +197,30 @@ def minimax(state, depth, alpha, beta, maximizing_player):
                 break
         return max_eval
     else:
-        min_eval = float('inf')
-        # Opponent is modeled as adversary — tries to minimize bot's score.
-        # For speed, we can limit opponent actions to plausible subset
+        # Opponent plays randomly: average the evaluations over possible actions
+        total_eval = 0.0
+        count = 0
         for action in get_possible_actions(state, actor='opp'):
             new_state = simulate_action(state, action, actor='opp')
             if new_state.get('terminal'):
                 eval_v = evaluate_state(new_state)
             else:
                 eval_v = minimax(new_state, depth - 1, alpha, beta, True)
-            min_eval = min(min_eval, eval_v)
-            beta = min(beta, eval_v)
-            if beta <= alpha:
-                break
-        return min_eval
+            total_eval += eval_v
+            count += 1
+        if count > 0:
+            return total_eval / count
+        else:
+            return 0
 
 
 # -------------------------
 # Main decision wrapper
 # -------------------------
-def bot_decision(state, depth=2, mc_sims=150):
+def bot_decision(state, depth=3, mc_sims=150, log=None):
+    if log is None:
+        log = BOT_LOG_TEMPLATE
+    start = time.time()
     """
     state: dict with fields:
       - bot_hand (list ints), community (list ints), pot, current_bet,
@@ -218,6 +243,21 @@ def bot_decision(state, depth=2, mc_sims=150):
             best = action
 
     # map 'check' vs 'call' preference: if both possible but call slightly better, pick call
+    win_prob = monte_carlo_win_prob(state['bot_hand'], state['community'], n_sim=mc_sims)
+    log["win_probs"].append(win_prob)
+
+    candidates = get_possible_actions(state, actor='bot')
+    best, best_score = None, -float('inf')
+
+    for action in candidates:
+        s2 = simulate_action(state, action, actor='bot')
+        score = minimax(s2, depth - 1, -float('inf'), float('inf'), False)
+        if score > best_score:
+            best, best_score = action, score
+
+    log["decisions"] += 1
+    log["decision_times"].append(time.time() - start)
+    log[best + "s"] = log.get(best + "s", 0) + 1
     return best
 
 
@@ -246,5 +286,5 @@ def bot_decision_wrapper(game, bot_player):
         'terminal': False,
     }
 
-    action = bot_decision(state, depth=2, mc_sims=120)
+    action = bot_decision(state, depth=bot_player.depth, mc_sims=bot_player.mc_sims, log=bot_player.bot_log)
     return action
