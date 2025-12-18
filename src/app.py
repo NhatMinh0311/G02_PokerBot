@@ -5,6 +5,12 @@ from treys import Deck, Card, Evaluator
 from bot import bot_decision_wrapper, BOT_LOG_TEMPLATE
 
 # =========================
+# Bot Settings (default)
+# =========================
+BOT_DEPTH = 3
+BOT_MC_SIMS = 1000
+
+# =========================
 # Pygame INIT
 # =========================
 pygame.init()
@@ -101,6 +107,10 @@ class Player:
         self.hand = []
         self.folded = False
         self.current_bet = 0
+        if is_bot:
+            self.depth = BOT_DEPTH
+            self.mc_sims = BOT_MC_SIMS
+            self.bot_log = BOT_LOG_TEMPLATE.copy()
 
     def reset(self):
         self.hand = []
@@ -165,7 +175,6 @@ def draw_card(cint, x, y, w=64, h=92, face_up=True, scale=1.0):
     if face_up and cint:
         label, col = card_label(cint)
         txt = FONT_BIG.render(label, True, col)
-        # căn cho không bị lệch khi w_scaled < w
         SCREEN.blit(txt, (x + 8, y + 6))
     elif not face_up:
         for i in range(4):
@@ -204,25 +213,40 @@ class PokerGame:
         self.particles = []          # particle effect khi thắng pot
         self.reveal_scale = 1.0      # scale lật bài bot khi showdown
 
+        # ========== MAIN MENU STATE ==========
+        self.last_round_result = "No rounds played yet."
+        self.menu_level = 5  # default level 5
+        self.in_game = False
+
         btn_h = 50
         self.buttons = {
             "new": Button((40, 720, 150, btn_h), "New Round", bg=BLUE),
             "fold": Button((210, 720, 120, btn_h), "Fold", bg=RED),
-            "cc": Button(
-                (340, 720, 170, btn_h),
-                "Check / Call",
-                bg=(40, 160, 60),
-            ),
-            "raise": Button(
-                (520, 720, 140, btn_h),
-                "Raise / Bet",
-                bg=YELLOW,
-                fg=BLACK,
-            ),
+            "cc": Button((340, 720, 170, btn_h), "Check / Call", bg=(40, 160, 60)),
+            "raise": Button((520, 720, 140, btn_h), "Raise / Bet", bg=YELLOW, fg=BLACK),
             "minus": Button((680, 720, 60, btn_h), "−", bg=GRAY),
             "plus": Button((750, 720, 60, btn_h), "+", bg=GRAY),
             "quit": Button((1050, 720, 100, btn_h), "Quit", bg=GRAY),
         }
+
+        # Menu buttons
+        self.menu_buttons = {
+            "start": Button((480, 520, 240, 60), "START GAME", bg=YELLOW, fg=BLACK, font=FONT_BIG),
+            "quit":  Button((480, 600, 240, 55), "QUIT", bg=GRAY, fg=WHITE, font=FONT_BIG),
+
+            "level_minus": Button((430, 370, 60, 50), "−", bg=GRAY),
+            "level_plus":  Button((710, 370, 60, 50), "+", bg=GRAY),
+        }
+
+        self.apply_bot_settings()
+
+    # ===== Apply bot settings from menu =====
+    def apply_bot_settings(self):
+        bot = self.players[1]
+        if bot.is_bot:
+            level = self.menu_level
+            bot.depth = level
+            bot.mc_sims = 50 + (level - 1) * 550
 
     # ---- dealing
     def create_deck(self):
@@ -259,7 +283,6 @@ class PokerGame:
         }
         col = color_map.get(type, (220, 220, 220))
         self.logs.append((s, col))
-        # Giữ nhiều log để cuộn
         if len(self.logs) > 200:
             self.logs = self.logs[-200:]
         print(s)
@@ -277,12 +300,8 @@ class PokerGame:
                 self.log_scroll -= 20
 
     def spawn_win_particles(self, winner_index: int):
-        """
-        Tạo particle effect từ vị trí pot/chip hoặc gần player thắng.
-        """
-        base_x, base_y = 80, 150  # gần pot mặc định
+        base_x, base_y = 80, 150
         if winner_index == 0:
-            # gần khung người chơi
             base_x, base_y = 260, 260
         elif winner_index == 1:
             base_x, base_y = 260, 460
@@ -297,14 +316,11 @@ class PokerGame:
             })
 
     def update_and_draw_particles(self):
-        """
-        Cập nhật & vẽ particle mỗi frame.
-        """
         alive = []
         for p in self.particles:
             p["x"] += p["vx"]
             p["y"] += p["vy"]
-            p["vy"] += 0.15  # gravity nhẹ
+            p["vy"] += 0.15
             p["life"] -= 1
 
             if p["life"] > 0:
@@ -314,201 +330,145 @@ class PokerGame:
                 pygame.draw.circle(SCREEN, col, (int(p["x"]), int(p["y"])), radius)
         self.particles = alive
 
+    # =========================
+    # MAIN MENU DRAW
+    # =========================
+    def draw_menu(self):
+        SCREEN.fill(DARK)
+
+        pygame.draw.rect(SCREEN, PANEL, (180, 120, 840, 560), border_radius=22)
+        pygame.draw.rect(SCREEN, (80, 80, 90), (180, 120, 840, 560), 2, border_radius=22)
+
+        SCREEN.blit(FONT_HUGE.render("Texas Hold'em", True, ACCENT), (220, 150))
+        SCREEN.blit(FONT_BIG.render("Main Menu", True, WHITE), (220, 205))
+
+        # Last result
+        SCREEN.blit(FONT_BIG.render("Last Round:", True, WHITE), (220, 260))
+        msg = self.last_round_result
+
+        # simple wrap (2 lines)
+        line1 = msg[:56]
+        line2 = msg[56:112] if len(msg) > 56 else ""
+        SCREEN.blit(FONT.render(line1, True, (220, 220, 220)), (220, 295))
+        if line2:
+            SCREEN.blit(FONT.render(line2, True, (220, 220, 220)), (220, 322))
+
+        # Bot strength title
+        SCREEN.blit(FONT_BIG.render("Bot Strength", True, WHITE), (220, 350))
+
+        # Level
+        SCREEN.blit(FONT.render("Bot Level:", True, ACCENT), (220, 380))
+        pygame.draw.rect(SCREEN, (20, 20, 22), (500, 370, 200, 50), border_radius=12)
+        pygame.draw.rect(SCREEN, (90, 90, 100), (500, 370, 200, 50), 2, border_radius=12)
+        SCREEN.blit(FONT_BIG.render(str(int(self.menu_level)), True, WHITE), (590, 380))
+
+        # hints
+        SCREEN.blit(FONT_SM.render("Tip: level 1-10 (depth 1-10, mc sims 50-5000)", True, (180, 180, 180)), (220, 470))
+
+        for b in self.menu_buttons.values():
+            b.draw(SCREEN)
+
+        pygame.display.flip()
+        CLOCK.tick(FPS)
+
     # ---- draw table
     def draw(self, headline="TABLE", reveal_bot=False):
         SCREEN.fill(DARK)
 
-        # Bàn poker
-        pygame.draw.rect(
-            SCREEN,
-            GREEN,
-            (20, 20, W - 40, 640),
-            border_radius=18,
-        )
-
-        # Thanh dưới
+        pygame.draw.rect(SCREEN, GREEN, (20, 20, W - 40, 640), border_radius=18)
         pygame.draw.rect(SCREEN, PANEL, (0, 700, W, 100))
 
-        # Title
-        SCREEN.blit(
-            FONT_HUGE.render("Texas Hold'em — You vs Bot", True, ACCENT),
-            (30, 26),
-        )
+        SCREEN.blit(FONT_HUGE.render("Texas Hold'em — You vs Bot", True, ACCENT), (30, 26))
         SCREEN.blit(FONT_BIG.render(headline, True, WHITE), (30, 70))
 
-        # Dealer info
         SCREEN.blit(
-            FONT.render(
-                f"Dealer: {self.players[self.dealer_index].name}",
-                True,
-                WHITE,
-            ),
+            FONT.render(f"Dealer: {self.players[self.dealer_index].name}", True, WHITE),
             (30, 110),
         )
 
-        # Pot (dùng chip nếu có)
         if CHIP_IMG:
             SCREEN.blit(CHIP_IMG, (30, 140))
-            SCREEN.blit(
-                FONT.render(f"${self.pot}", True, YELLOW),
-                (90, 150),
-            )
+            SCREEN.blit(FONT.render(f"${self.pot}", True, YELLOW), (90, 150))
         else:
-            SCREEN.blit(
-                FONT.render(f"Pot: ${self.pot}", True, YELLOW),
-                (30, 140),
-            )
+            SCREEN.blit(FONT.render(f"Pot: ${self.pot}", True, YELLOW), (30, 140))
 
-        SCREEN.blit(
-            FONT.render(f"Current Bet: ${self.current_bet}", True, WHITE),
-            (30, 180),
-        )
+        SCREEN.blit(FONT.render(f"Current Bet: ${self.current_bet}", True, WHITE), (30, 180))
 
-        # Hiển thị last action
         if self.last_action:
-            SCREEN.blit(
-                FONT.render(f"Last action: {self.last_action}", True, ACCENT),
-                (620, 50),
-            )
+            SCREEN.blit(FONT.render(f"Last action: {self.last_action}", True, ACCENT), (620, 50))
 
-        # Community cards
         SCREEN.blit(FONT_BIG.render("Community", True, WHITE), (620, 80))
         draw_row(self.community, 620, 120, True)
 
-        # ----- Player (You) -----
+        # Player
         you_rect = pygame.Rect(20, 240, W - 600, 170)
-        pygame.draw.rect(
-            SCREEN,
-            (40, 40, 46),
-            you_rect,
-            border_radius=20,
-        )
+        pygame.draw.rect(SCREEN, (40, 40, 46), you_rect, border_radius=20)
         you = self.players[0]
         SCREEN.blit(FONT_BIG.render("You", True, WHITE), (40, 250))
-        SCREEN.blit(
-            FONT.render(f"Money: ${you.money}", True, YELLOW),
-            (40, 284),
-        )
-        SCREEN.blit(
-            FONT.render(f"Your Bet: ${you.current_bet}", True, WHITE),
-            (40, 314),
-        )
+        SCREEN.blit(FONT.render(f"Money: ${you.money}", True, YELLOW), (40, 284))
+        SCREEN.blit(FONT.render(f"Your Bet: ${you.current_bet}", True, WHITE), (40, 314))
 
-        # Avatar you
         if AVATAR_YOU:
             SCREEN.blit(AVATAR_YOU, (220, 250))
 
         draw_row(you.hand, 320, 260, True)
 
         if you.folded:
-            SCREEN.blit(
-                FONT_BIG.render("FOLDED", True, RED),
-                (320, 320),
-            )
+            SCREEN.blit(FONT_BIG.render("FOLDED", True, RED), (320, 320))
 
-        # ----- Bot -----
+        # Bot
         bot_rect = pygame.Rect(20, 430, W - 600, 170)
-        pygame.draw.rect(
-            SCREEN,
-            (40, 40, 46),
-            bot_rect,
-            border_radius=20,
-        )
+        pygame.draw.rect(SCREEN, (40, 40, 46), bot_rect, border_radius=20)
         bot = self.players[1]
         SCREEN.blit(FONT_BIG.render("Bot", True, WHITE), (40, 440))
-        SCREEN.blit(
-            FONT.render(f"Money: ${bot.money}", True, YELLOW),
-            (40, 474),
-        )
-        SCREEN.blit(
-            FONT.render(f"Bot Bet: ${bot.current_bet}", True, WHITE),
-            (40, 504),
-        )
+        SCREEN.blit(FONT.render(f"Money: ${bot.money}", True, YELLOW), (40, 474))
+        SCREEN.blit(FONT.render(f"Bot Bet: ${bot.current_bet}", True, WHITE), (40, 504))
 
-        # Avatar bot
         if AVATAR_BOT:
             SCREEN.blit(AVATAR_BOT, (220, 450))
 
         if reveal_bot:
-            # lật bài với scale
             draw_row(bot.hand, 320, 450, True, scale=self.reveal_scale)
         else:
-            # úp
             for i in range(len(bot.hand) if bot.hand else 0):
                 draw_card(0, 320 + i * 72, 450, face_up=False)
 
         if bot.folded:
-            SCREEN.blit(
-                FONT_BIG.render("FOLDED", True, RED),
-                (320, 510),
-            )
+            SCREEN.blit(FONT_BIG.render("FOLDED", True, RED), (320, 510))
 
-        # Highlight ai đang tới lượt
+        # Highlight turn
         if self.active_player_index == 0:
             pygame.draw.rect(SCREEN, (120, 220, 120), you_rect, 3, border_radius=20)
         elif self.active_player_index == 1:
             pygame.draw.rect(SCREEN, (220, 120, 120), bot_rect, 3, border_radius=20)
 
         # Raise amount
-        SCREEN.blit(
-            FONT.render(
-                f"Raise Amount: ${self.raise_amount}",
-                True,
-                ACCENT,
-            ),
-            (500, 680),
-        )
+        SCREEN.blit(FONT.render(f"Raise Amount: ${self.raise_amount}", True, ACCENT), (500, 680))
 
-        # =========================
         # LOG WINDOW (scrollable)
-        # =========================
-        LOG_X = 760
-        LOG_Y = 240
-        LOG_W = 400
-        LOG_H = 360
+        LOG_X, LOG_Y, LOG_W, LOG_H = 760, 240, 400, 360
 
-        pygame.draw.rect(
-            SCREEN, (10, 10, 10),
-            pygame.Rect(LOG_X, LOG_Y, LOG_W, LOG_H),
-            border_radius=10
-        )
-        pygame.draw.rect(
-            SCREEN, (200, 200, 200),
-            pygame.Rect(LOG_X, LOG_Y, LOG_W, LOG_H),
-            2,
-            border_radius=10
-        )
+        pygame.draw.rect(SCREEN, (10, 10, 10), pygame.Rect(LOG_X, LOG_Y, LOG_W, LOG_H), border_radius=10)
+        pygame.draw.rect(SCREEN, (200, 200, 200), pygame.Rect(LOG_X, LOG_Y, LOG_W, LOG_H), 2, border_radius=10)
 
-        # vẽ text lên buffer surface
         content_h = max(LOG_H, len(self.logs) * self.log_line_height)
         log_surface = pygame.Surface((LOG_W - 20, content_h), pygame.SRCALPHA)
         log_surface.fill((0, 0, 0, 0))
 
-        # render từng dòng
         for i, (line, col) in enumerate(self.logs):
             text = FONT_SM.render(line, True, col)
             log_surface.blit(text, (0, i * self.log_line_height))
 
-        # scroll giới hạn
         max_scroll = max(0, content_h - LOG_H + 20)
         self.log_scroll = max(-max_scroll, min(0, self.log_scroll))
 
-        # ========== FIX CLIPPING ==========
         clip_rect = pygame.Rect(LOG_X, LOG_Y, LOG_W, LOG_H)
         SCREEN.set_clip(clip_rect)
+        SCREEN.blit(log_surface, (LOG_X + 10, LOG_Y + self.log_scroll))
+        SCREEN.set_clip(None)
 
-        SCREEN.blit(
-            log_surface,
-            (LOG_X + 10, LOG_Y + self.log_scroll)
-        )
-
-        SCREEN.set_clip(None)  # bỏ giới hạn sau khi vẽ
-
-
-        # Particle effect (vẽ sau để nổi lên trên)
         self.update_and_draw_particles()
 
-        # Buttons
         for b in self.buttons.values():
             b.draw(SCREEN)
 
@@ -527,32 +487,16 @@ class PokerGame:
         self.pot += bbp.bet(big_blind)
         self.current_bet = big_blind
 
-        self.log(
-            f"{sbp.name} (SB) ${small_blind} | "
-            f"{bbp.name} (BB) ${big_blind} | Pot=${self.pot}",
-            type="action",
-        )
+        self.log(f"{sbp.name} (SB) ${small_blind} | {bbp.name} (BB) ${big_blind} | Pot=${self.pot}", type="action")
         self.draw("BLINDS")
 
     # ---- wait buttons for player's action
     def _wait_player_buttons(self, can_check):
-        """Trả về action: 'fold' | 'check' | 'call' | 'bet' | 'raise'"""
-        # chỉ enable nút khi tới lượt player
         for k in self.buttons:
-            self.buttons[k].disabled = k not in (
-                "fold",
-                "cc",
-                "raise",
-                "minus",
-                "plus",
-                "quit",
-            )
-        self.buttons["cc"].text = (
-            "Check" if (can_check or self.current_bet == 0) else "Call"
-        )
-        self.buttons["raise"].text = (
-            "Bet" if self.current_bet == 0 else "Raise"
-        )
+            self.buttons[k].disabled = k not in ("fold", "cc", "raise", "minus", "plus", "quit")
+
+        self.buttons["cc"].text = ("Check" if (can_check or self.current_bet == 0) else "Call")
+        self.buttons["raise"].text = ("Bet" if self.current_bet == 0 else "Raise")
 
         while True:
             for ev in pygame.event.get():
@@ -561,11 +505,12 @@ class PokerGame:
                     pygame.quit()
                     raise SystemExit
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    raise SystemExit
+                    self.in_game = False
+                    return "quit"
                 if self.buttons["quit"].handle(ev):
-                    pygame.quit()
-                    raise SystemExit
+                    self.in_game = False
+                    return "quit"
+
                 if self.buttons["minus"].handle(ev):
                     self.raise_amount = max(1, self.raise_amount - 1)
                 elif self.buttons["plus"].handle(ev):
@@ -581,28 +526,21 @@ class PokerGame:
 
     # ---- 1 action của 1 player
     def _act(self, p):
-        """Thực hiện 1 action của 1 player, trả về:
-        'fold' | 'check' | 'call' | 'raise'
-        (ở đây 'bet' cũng quy về 'raise')
-        """
         self.draw(f"{p.name}'s turn")
-
         can_check = (p.current_bet == self.current_bet)
 
-        # ================= BOT =================
+        # BOT
         if p.is_bot:
-            # Bot "nghĩ" 1 chút cho giống người
             pygame.time.delay(random.randint(300, 900))
             pygame.event.pump()
             action = bot_decision_wrapper(self, p)
-            # phòng trường hợp bot trả 'bet'
+
             if action == "bet" or action == "raise":
                 action = "raise"
             else:
                 self.log(f"Bot {action}", type="action")
-            # Set last_action
+
             self.last_action = f"Bot: {action.capitalize()}"
-            
 
             if action == "fold":
                 p.folded = True
@@ -614,32 +552,29 @@ class PokerGame:
                 return "check"
 
             elif action == "call":
-                diff = self.current_bet - p.current_bet
-                diff = max(0, diff)
+                diff = max(0, self.current_bet - p.current_bet)
                 if diff > 0:
                     self.pot += p.bet(diff)
                 safe_play(SND_CALL)
                 return "call"
 
             elif action == "raise":
-                # bot raise cố định +5
                 raise_to = self.current_bet + 5
-                diff = raise_to - p.current_bet
-                diff = max(0, diff)
+                diff = max(0, raise_to - p.current_bet)
                 if diff > 0:
                     self.pot += p.bet(diff)
                 self.current_bet = raise_to
-                self.log(f"Bot {action} {self.current_bet}$", type="action")
+                self.log(f"Bot raise {self.current_bet}$", type="action")
                 safe_play(SND_RAISE)
                 return "raise"
 
-            # nếu bot trả gì lạ -> coi như check
             safe_play(SND_CHECK)
             return "check"
 
-        # ================= PLAYER =================
+        # PLAYER
         else:
             action = self._wait_player_buttons(can_check)
+
             if action == "fold":
                 p.folded = True
                 self.last_action = "You: Fold"
@@ -654,8 +589,7 @@ class PokerGame:
                 return "check"
 
             if action == "call":
-                diff = self.current_bet - p.current_bet
-                diff = max(0, diff)
+                diff = max(0, self.current_bet - p.current_bet)
                 if diff > 0:
                     self.pot += p.bet(diff)
                 self.last_action = f"You: Call ${diff}"
@@ -664,7 +598,6 @@ class PokerGame:
                 return "call"
 
             if action == "bet":
-                # street chưa có bet nào
                 bet_amount = max(1, self.raise_amount)
                 diff = bet_amount - p.current_bet
                 if diff > 0:
@@ -681,12 +614,11 @@ class PokerGame:
                 if diff > 0:
                     self.pot += p.bet(diff)
                 self.current_bet = new_bet
-                self.last_action = f"You: Raise to ${new_bet}"
-                self.log(f"You raise to ${new_bet}.", type="action")
+                self.last_action = f"You: Raise ${new_bet}"
+                self.log(f"You raise ${new_bet}.", type="action")
                 safe_play(SND_RAISE)
                 return "raise"
 
-            # fallback
             self.last_action = "You: Check"
             safe_play(SND_CHECK)
             return "check"
@@ -701,7 +633,6 @@ class PokerGame:
 
         acted_once = [False, False]
         last_raiser = None
-
         idx = self.active_player_index
 
         while True:
@@ -714,9 +645,11 @@ class PokerGame:
                 continue
 
             result = self._act(p)
+            if result == "quit":
+                self.in_game = False
+                break
             acted_once[idx] = True
 
-            # Nếu fold -> nếu chỉ còn 1 người thì showdown luôn
             if result == "fold":
                 if self.isEnded():
                     self.log("💥 All others folded!", type="info")
@@ -728,14 +661,10 @@ class PokerGame:
                 acted_once = [False, False]
                 acted_once[idx] = True
 
-            # Kiểm tra kết thúc street
             a, b = self.players
 
             if last_raiser is None:
-                # CHƯA có raise
-                both_acted = all(
-                    acted_once[i] or self.players[i].folded for i in (0, 1)
-                )
+                both_acted = all(acted_once[i] or self.players[i].folded for i in (0, 1))
                 if both_acted and a.current_bet == b.current_bet:
                     if self.current_bet == 0:
                         self.log("Both checked. Street ends.", type="info")
@@ -743,7 +672,6 @@ class PokerGame:
                         self.log("Both called. Street ends.", type="info")
                     break
             else:
-                # ĐÃ có raise:
                 if idx != last_raiser:
                     if result in ("call", "check") or p.folded:
                         self.log("Raise has been answered. Street ends.", type="info")
@@ -751,7 +679,6 @@ class PokerGame:
 
             idx = (idx + 1) % 2
 
-        # Reset bet cho street tiếp theo nếu chưa kết thúc cả ván
         if not self.isEnded():
             for p in self.players:
                 p.current_bet = 0
@@ -759,10 +686,6 @@ class PokerGame:
             self.draw("STREET ENDED")
 
     def _round_end_pause(self, message):
-        """
-        Dừng lại sau khi kết thúc ván để người chơi xem bài bot & kết quả.
-        Chỉ tiếp tục khi nhấn NEW ROUND.
-        """
         for k in self.buttons:
             self.buttons[k].disabled = True
         self.buttons["new"].disabled = False
@@ -778,11 +701,11 @@ class PokerGame:
                     pygame.quit()
                     raise SystemExit
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    raise SystemExit
+                    self.in_game = False
+                    waiting = False
                 if self.buttons["quit"].handle(ev):
-                    pygame.quit()
-                    raise SystemExit
+                    self.in_game = False
+                    waiting = False
                 if self.buttons["new"].handle(ev):
                     waiting = False
 
@@ -790,7 +713,6 @@ class PokerGame:
 
     # ---- showdown
     def showdown(self):
-        # Animation lật bài bot
         self.reveal_scale = 0.0
         for i in range(21):
             self.reveal_scale = i / 20.0
@@ -799,7 +721,6 @@ class PokerGame:
 
         active = [p for p in self.players if not p.folded]
 
-        # ========== 1 người còn lại → thắng mặc định ==========#
         if len(active) == 1:
             winner = active[0]
             winner_index = self.players.index(winner)
@@ -809,6 +730,9 @@ class PokerGame:
             safe_play(SND_WIN)
             self.spawn_win_particles(winner_index)
 
+            # update last round result for MENU
+            self.last_round_result = msg
+
             if winner.is_bot:
                 BOT_LOG_TEMPLATE["rounds"]["bot_wins"] += 1
             else:
@@ -817,7 +741,6 @@ class PokerGame:
             self._round_end_pause(msg)
             return
 
-        # ========== So bài ==========#
         res = compare_hands(
             cards1=self.players[0].hand,
             cards2=self.players[1].hand,
@@ -847,6 +770,9 @@ class PokerGame:
         if winner_index is not None:
             self.spawn_win_particles(winner_index)
 
+        # update last round result for MENU
+        self.last_round_result = msg
+
         self.draw("SHOWDOWN", reveal_bot=True)
         self._round_end_pause(msg)
 
@@ -864,33 +790,30 @@ class PokerGame:
         self.create_deck()
 
     def play_round(self):
+        self.apply_bot_settings()
+
         self.reset()
         self.logs = []
         self.draw("NEW ROUND")
 
-        # Blinds + deal
         self.post_blinds()
         self.deal_hole_cards()
         self.draw("HOLE CARDS")
 
-        # ===== Pre-Flop: người hành động đầu là sau Big Blind
         self.active_player_index = (self.dealer_index + 1) % 2
         self.betting_round()
         if self.isEnded():
             self.dealer_index = (self.dealer_index + 1) % 2
             return
 
-        # ===== Flop
         self.deal_flop()
         self.draw("FLOP")
-        # Post-flop: Dealer hành động trước
         self.active_player_index = self.dealer_index
         self.betting_round()
         if self.isEnded():
             self.dealer_index = (self.dealer_index + 1) % 2
             return
 
-        # ===== Turn
         self.deal_turn()
         self.draw("TURN")
         self.active_player_index = self.dealer_index
@@ -899,7 +822,6 @@ class PokerGame:
             self.dealer_index = (self.dealer_index + 1) % 2
             return
 
-        # ===== River
         self.deal_river()
         self.draw("RIVER")
         self.active_player_index = self.dealer_index
@@ -908,55 +830,58 @@ class PokerGame:
             self.dealer_index = (self.dealer_index + 1) % 2
             return
 
-        # Showdown nếu tới river mà chưa ai fold
         self.showdown()
         self.dealer_index = (self.dealer_index + 1) % 2
 
     def play_game(self):
-        # Màn hình chờ: New / Quit
-        for k in self.buttons:
-            self.buttons[k].disabled = True
-        self.buttons["new"].disabled = False
-        self.buttons["quit"].disabled = False
+        while True:
+            # ===== MAIN MENU LOOP =====
+            in_menu = True
+            while in_menu:
+                for ev in pygame.event.get():
+                    if ev.type == pygame.QUIT:
+                        pygame.quit()
+                        return
+                    if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
+                        pygame.quit()
+                        return
 
-        self.draw("Click New Round to start")
-        waiting = True
-        while waiting:
-            for ev in pygame.event.get():
-                self.handle_log_scroll(ev)
-                if ev.type == pygame.QUIT:
-                    pygame.quit()
-                    return
-                if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    return
-                if self.buttons["quit"].handle(ev):
-                    pygame.quit()
-                    return
-                if self.buttons["new"].handle(ev):
-                    waiting = False
-            self.draw("Click New Round to start")
+                    if self.menu_buttons["quit"].handle(ev):
+                        pygame.quit()
+                        return
 
-        # Chơi cho tới khi 1 người hết tiền
-        while all(p.money > 0 for p in self.players):
-            self.play_round()
+                    # level
+                    if self.menu_buttons["level_minus"].handle(ev):
+                        self.menu_level = max(1, int(self.menu_level) - 1)
+                    if self.menu_buttons["level_plus"].handle(ev):
+                        self.menu_level = min(10, int(self.menu_level) + 1)
 
-        # Game over
-        SCREEN.fill(DARK)
-        SCREEN.blit(
-            FONT_HUGE.render("GAME OVER", True, ACCENT),
-            (30, 26),
-        )
-        y = 90
-        for p in self.players:
-            SCREEN.blit(
-                FONT_BIG.render(f"{p.name}: ${p.money}", True, WHITE),
-                (30, y),
-            )
-            y += 36
-        pygame.display.flip()
-        pygame.time.delay(1600)
-        pygame.quit()
+                    if self.menu_buttons["start"].handle(ev):
+                        # Reset money for new game
+                        for p in self.players:
+                            p.money = 100
+                        if self.players[1].is_bot:
+                            self.players[1].bot_log = BOT_LOG_TEMPLATE.copy()
+                        self.apply_bot_settings()
+                        in_menu = False
+
+                self.draw_menu()
+
+            # ===== GAME LOOP =====
+            self.in_game = True
+            while self.in_game:
+                self.play_round()
+                if not all(p.money > 0 for p in self.players):
+                    # Game over, update result
+                    p1, p2 = self.players
+                    if p1.money > p2.money:
+                        winner = p1.name
+                    elif p2.money > p1.money:
+                        winner = p2.name
+                    else:
+                        winner = "Tie"
+                    self.last_round_result = f"You: ${p1.money} | Bot: ${p2.money} | Winner: {winner}"
+                    self.in_game = False
 
 
 # =========================

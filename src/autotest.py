@@ -137,7 +137,7 @@ class PokerGame:
                 action = (
                     bot_decision_wrapper(self, p)
                     if p.is_bot
-                    else random.choice(["call", "fold", "raise"])
+                    else random.choice(["call"])
                 )
 
                 raised = self._apply_action(p, action)
@@ -256,14 +256,14 @@ def print_bot_stats(game):
                 print(f"Check rate: {log['checks'] / log['decisions']:.2%}")
                 print(f"Check count: {log['checks']}")
     print(f"\n=== GAME ROUNDS ===")
-    print(f"Bot1 wins: {rounds['p0_wins']}")
-    print(f"Bot2 wins: {rounds['p1_wins']}")
+    print(f"{game.players[0].name} wins: {rounds['p0_wins']}")
+    print(f"{game.players[1].name} wins: {rounds['p1_wins']}")
     print(f"Ties: {rounds['ties']}")
 
 
 if __name__ == "__main__":
     game = PokerGame(players=[
-        Player("Bot1", is_bot=True, depth=5, mc_sims=50),
-        Player("Bot2", is_bot=True, depth=2, mc_sims=100)
+        Player("Bot1", is_bot=True, depth=5, mc_sims=200),
+        Player("Bot2", is_bot=True, depth=5, mc_sims=200)
     ])
     game.play_game(max_rounds=50)
