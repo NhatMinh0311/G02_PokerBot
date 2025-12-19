@@ -1,9 +1,10 @@
 import random
 import copy
-from treys import Evaluator, Deck, Card
+from treys import Evaluator, Deck
 
 import time
 
+# Template lưu trữ thống kê hoạt động của bot
 BOT_LOG_TEMPLATE = {
     "decisions": 0,
     "folds": 0,
@@ -20,40 +21,30 @@ BOT_LOG_TEMPLATE = {
     }
 }
 
-# -------------------------
-# Monte Carlo evaluator setup
-
+# Khởi tạo công cụ đánh giá tay poker
 evaluator = Evaluator()
 
-# -------------------------
-# Monte Carlo win probability
-# -------------------------
+# Tính xác suất thắng bằng phương pháp Monte Carlo
 def monte_carlo_win_prob(bot_hand, community, n_sim=200):
-    """
-    bot_hand: list of 2 treys-int cards
-    community: list of 0..5 treys-int cards (current community on table)
-    Returns estimated probability bot wins (ties count as 0.5)
-    """
-    # prepare deck
-    deck = Deck()              # deck.cards is list of ints
+    deck = Deck()
     used = set(bot_hand + community)
-    # remove used cards from deck
     deck_cards = [c for c in deck.cards if c not in used]
     wins = 0.0
-    sims = n_sim
 
-    for _ in range(sims):
+    # Chạy n_sim vòng mô phỏng
+    for _ in range(n_sim):
         deck_copy = deck_cards.copy()
         random.shuffle(deck_copy)
 
-        # opponent two cards
+        # Tạo tay đối thủ ngẫu nhiên
         opp_hand = [deck_copy.pop(), deck_copy.pop()]
 
-        # fill community to 5
+        # Hoàn thành bộ bài cộng đồng
         sim_community = community.copy()
         while len(sim_community) < 5:
             sim_community.append(deck_copy.pop())
 
+        # So sánh điểm số
         bot_score = evaluator.evaluate(sim_community, bot_hand)
         opp_score = evaluator.evaluate(sim_community, opp_hand)
         if bot_score < opp_score:
@@ -61,53 +52,46 @@ def monte_carlo_win_prob(bot_hand, community, n_sim=200):
         elif bot_score == opp_score:
             wins += 0.5
 
-    return wins / sims
+    return wins / n_sim
 
 
-# -------------------------
-# State helpers & simulation
-# -------------------------
 DEFAULT_RAISE = 5
 
+# Lấy danh sách hành động có thể thực hiện
 def get_possible_actions(state, actor='bot'):
-    """
-    state keys: bot_money, opp_money, pot, current_bet, bot_current_bet, opp_current_bet, community, bot_hand
-    Return list of actions allowed: 'fold','check','call','raise'
-    """
     actions = []
-    # determine actor-specific bet amounts
+    
     if actor == 'bot':
-        my_cur = state['bot_current_bet']
+        current_bet = state['bot_current_bet']
     else:
-        my_cur = state['opp_current_bet']
+        current_bet = state['opp_current_bet']
 
+    # Nếu chưa có cược, có thể check hoặc raise
+    # Nếu đã có cược, có thể call, raise, hoặc fold
     if state['current_bet'] == 0:
-        # no bet currently
-        actions += ['check', 'raise']  # fold is allowed but unusual
+        actions += ['check', 'raise']
     else:
-        # there is a bet to match
         actions += ['call', 'raise', 'fold']
+    
     return actions
 
 
+# Mô phỏng kết quả của một hành động
 def simulate_action(state, action, actor='bot'):
-    """
-    Return a new state (deep copy) after applying action by actor.
-    actor: 'bot' or 'opp'
-    """
     s = copy.deepcopy(state)
     raise_amt = s.get('raise_amount', DEFAULT_RAISE)
 
+    # Fold: kết thúc trò chơi, đối thủ thắng
     if action == 'fold':
-        # if actor folds, the other side wins immediately
         s['terminal'] = True
         s['winner'] = 'opp' if actor == 'bot' else 'bot'
         return s
 
+    # Check: không cược gì thêm
     if action == 'check':
-        # no money exchange; nothing changes except turn passes
         return s
 
+    # Call: cược để ngang bằng cược hiện tại
     if action == 'call':
         to_call = s['current_bet'] - (s['bot_current_bet'] if actor == 'bot' else s['opp_current_bet'])
         to_call = max(0, to_call)
@@ -120,11 +104,10 @@ def simulate_action(state, action, actor='bot'):
             s['opp_money'] -= taken
             s['opp_current_bet'] += taken
         s['pot'] += taken
-        # after call normally current_bet stays same, not reset here (caller has matched)
         return s
 
+    # Raise: tăng cược
     if action == 'raise':
-        # new total bet = current_bet + raise_amt (simple fixed raise)
         new_total = s['current_bet'] + raise_amt
         if actor == 'bot':
             diff = new_total - s['bot_current_bet']
@@ -140,53 +123,41 @@ def simulate_action(state, action, actor='bot'):
             s['opp_current_bet'] += diff
         s['pot'] += diff
         s['current_bet'] = max(s['current_bet'], new_total)
-        # mark that a raise happened; game continues
         return s
 
     return s
 
 
-# -------------------------
-# Evaluation / utility
-# -------------------------
+# Đánh giá giá trị của trạng thái hiện tại
 def evaluate_state(state, mc_sims=100):
-    """
-    A heuristic evaluation:
-    - Use monte carlo win prob as base
-    - Combine with money factors and pot odds
-    Returns a numeric score (higher better for bot)
-    """
     bot_hand = state['bot_hand']
     comm = state['community']
-    # Quick MC estimate
+    # Tính xác suất thắng của bot
     win_prob = monte_carlo_win_prob(bot_hand, comm, n_sim=mc_sims)
 
-    # Pot odds / risk metric: expected gain if call now roughly win_prob * pot - (1-win_prob)*call_amount
+    # Tính Expected Value của việc call
     to_call = max(0, state['current_bet'] - state['bot_current_bet'])
-    # approximate expected value of calling (normalized)
     ev_call = win_prob * state['pot'] - (1 - win_prob) * to_call
 
-    # money balance factor
+    # Tính tỷ lệ tiền so với đối thủ
     money_factor = state['bot_money'] / (state['bot_money'] + state['opp_money'] + 1)
 
-    # combine into score: emphasize EV for profit
+    # Tính điểm theo công thức kết hợp
     score = 0.4 * win_prob + 0.5 * (ev_call / (state['pot'] + 1)) + 0.1 * money_factor
     return score
 
 
-# -------------------------
-# MiniMax with alpha-beta
-# -------------------------
+# Thuật toán Minimax với cắt tỉa Alpha-Beta
 def minimax(state, depth, alpha, beta, maximizing_player):
-    # terminal check: fold winner
+    # Điều kiện dừng: trò chơi kết thúc hoặc đạt độ sâu tối đa
     if state.get('terminal', False) or depth == 0:
         return evaluate_state(state)
 
     if maximizing_player:
+        # Bot tìm hành động tối đa hóa điểm
         max_eval = -float('inf')
         for action in get_possible_actions(state, actor='bot'):
             new_state = simulate_action(state, action, actor='bot')
-            # If fold terminal, evaluate directly
             if new_state.get('terminal'):
                 eval_v = evaluate_state(new_state)
             else:
@@ -197,7 +168,7 @@ def minimax(state, depth, alpha, beta, maximizing_player):
                 break
         return max_eval
     else:
-        # Opponent plays randomly: average the evaluations over possible actions
+        # Đối thủ chọn hành động trung bình (khó đoán)
         total_eval = 0.0
         count = 0
         for action in get_possible_actions(state, actor='opp'):
@@ -214,88 +185,56 @@ def minimax(state, depth, alpha, beta, maximizing_player):
             return 0
 
 
-# -------------------------
-# Main decision wrapper
-# -------------------------
+# Hàm quyết định hành động chính của bot
 def bot_decision(state, depth=3, mc_sims=150, log=None):
     if log is None:
         log = BOT_LOG_TEMPLATE
+    
     start = time.time()
-    """
-    state: dict with fields:
-      - bot_hand (list ints), community (list ints), pot, current_bet,
-      - bot_money, opp_money, bot_current_bet, opp_current_bet
-    Returns one of: 'fold','check','call','raise'
-    """
-    # compute candidate actions
+    
     candidates = get_possible_actions(state, actor='bot')
-    best = None
-    best_score = -float('inf')
-
-    # attach montecarlo sims parameter to evaluate_state via closure if needed
-    for action in candidates:
-        s2 = simulate_action(state, action, actor='bot')
-        # after simulate, run minimax (opponent to move)
-        score = minimax(s2, depth - 1, -float('inf'), float('inf'), False)
-        # tie-breaker prefer aggressive actions if scores close
-        if score > best_score:
-            best_score = score
-            best = action
-
-    # map 'check' vs 'call' preference: if both possible but call slightly better, pick call
     win_prob = monte_carlo_win_prob(state['bot_hand'], state['community'], n_sim=mc_sims)
     log["win_probs"].append(win_prob)
 
-    candidates = get_possible_actions(state, actor='bot')
-    # Maximize profit: fold if win_prob < threshold or EV negative
-    fold_threshold = 0.65 - (depth - 1) * 0.05  # depth cao fold ít hơn
+    # Loại bỏ fold nếu xác suất thắng cao hoặc Expected Value dương
+    fold_threshold = 0.65 - (depth - 1) * 0.05
     to_call = max(0, state['current_bet'] - state['bot_current_bet'])
     ev_call = win_prob * state['pot'] - (1 - win_prob) * to_call
+    
     if win_prob < fold_threshold or ev_call < 0:
-        pass  # allow fold
+        pass
     else:
         candidates = [c for c in candidates if c != 'fold']
 
+    # Tìm hành động tốt nhất bằng Minimax
     best, best_score = None, -float('inf')
 
     for action in candidates:
         s2 = simulate_action(state, action, actor='bot')
         score = minimax(s2, depth - 1, -float('inf'), float('inf'), False)
-        # Bluff rate increases with depth for smarter play
-        bluff_rate = 0.02 + (depth - 1) * 0.02
-        bluff_bonus = 0.1 + (depth - 1) * 0.05  # depth cao bluff mạnh hơn
-        if action == 'raise' and random.random() < bluff_rate:
-            score += bluff_bonus
-        # Remove pre-flop bonus for profit focus
+        
+        # Thêm yếu tố ngẫu nhiên cho raise để tạo tính không lường trước
+        if action == 'raise' and random.random() < 0.05:
+            score += 0.2
+        
         if score > best_score:
             best, best_score = action, score
 
+    # Cập nhật log
     log["decisions"] += 1
     log["decision_times"].append(time.time() - start)
     log[best + "s"] = log.get(best + "s", 0) + 1
+    
     return best
 
 
-# -------------------------
-# wrapper to be used in betting_round
-# -------------------------
+# Wrapper để gọi bot_decision từ trò chơi
 def bot_decision_wrapper(game, bot_player):
-    """
-    Build state from game object and call bot_decision.
-    game: your PokerGame instance
-    bot_player: Player instance (bot)
-    """
-    # find opponent
     other = next(p for p in game.players if p is not bot_player)
 
-    # Quick win prob estimate for raise amount
-    quick_win_prob = monte_carlo_win_prob(bot_player.hand, game.community, n_sim=bot_player.mc_sims // 10)
-    # Calculate raise amount based on win prob and pot, scaled by depth
-    depth_factor = bot_player.depth / 3.0  # depth 3 = 1, depth cao >1
-    base_raise = max(5, int(quick_win_prob * 20 * depth_factor))
-    pot_based = game.pot // 4 + 5
-    raise_amount = min(base_raise, pot_based, bot_player.money // 2)  # cap at half money
+    raise_amount = 5
 
+    # Tạo state từ thông tin trò chơi
     state = {
         'bot_hand': bot_player.hand.copy(),
         'community': game.community.copy(),

@@ -262,8 +262,45 @@ def print_bot_stats(game):
 
 
 if __name__ == "__main__":
-    game = PokerGame(players=[
-        Player("Bot1", is_bot=True, depth=5, mc_sims=200),
-        Player("Bot2", is_bot=True, depth=5, mc_sims=200)
-    ])
-    game.play_game(max_rounds=50)
+    num_games = 10
+    total_bot1_wins = 0
+    total_bot2_wins = 0
+    total_ties = 0
+    total_bot1_money = 0
+    total_bot2_money = 0
+
+    for game_num in range(1, num_games + 1):
+        print(f"\n--- Game {game_num}/{num_games} ---")
+        game = PokerGame(players=[
+            Player("Bot1", is_bot=True, depth=2, mc_sims=200),
+            Player("Bot2", is_bot=True, depth=4, mc_sims=200)
+        ])
+        game.play_game(max_rounds=20)
+        
+        # Collect stats
+        total_bot1_wins += game.rounds['p0_wins']
+        total_bot2_wins += game.rounds['p1_wins']
+        total_ties += game.rounds['ties']
+        total_bot1_money += game.players[0].money
+        total_bot2_money += game.players[1].money
+
+    # Calculate averages
+    avg_bot1_wins = total_bot1_wins / num_games
+    avg_bot2_wins = total_bot2_wins / num_games
+    avg_ties = total_ties / num_games
+    avg_bot1_money = total_bot1_money / num_games
+    avg_bot2_money = total_bot2_money / num_games
+
+    print(f"\n=== OVERALL AVERAGE STATS ({num_games} games) ===")
+    print(f"Average Bot1 wins: {avg_bot1_wins:.1f}")
+    print(f"Average Bot2 wins: {avg_bot2_wins:.1f}")
+    print(f"Average Ties: {avg_ties:.1f}")
+    print(f"Average Bot1 money: ${avg_bot1_money:.1f}")
+    print(f"Average Bot2 money: ${avg_bot2_money:.1f}")
+
+    if avg_bot1_money > avg_bot2_money:
+        print(f">>>>>>>>>>>> Bot1 wins overall on average! <<<<<<<<<<<")
+    elif avg_bot2_money > avg_bot1_money:
+        print(f">>>>>>>>>>>> Bot2 wins overall on average! <<<<<<<<<<<")
+    else:
+        print("🤝 It's a tie on average!")
