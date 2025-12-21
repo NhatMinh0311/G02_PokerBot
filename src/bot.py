@@ -143,7 +143,7 @@ def evaluate_state(state, mc_sims=100):
     money_factor = state['bot_money'] / (state['bot_money'] + state['opp_money'] + 1)
 
     # Tính điểm theo công thức kết hợp
-    score = 0.4 * win_prob + 0.5 * (ev_call / (state['pot'] + 1)) + 0.1 * money_factor
+    score = 0.6 * win_prob + 0.3 * (ev_call / (state['pot'] + 1)) + 0.1 * money_factor
     return score
 
 

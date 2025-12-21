@@ -137,7 +137,7 @@ class PokerGame:
                 action = (
                     bot_decision_wrapper(self, p)
                     if p.is_bot
-                    else random.choice(["call"])
+                    else random.choice(["call", "raise"])
                 )
 
                 raised = self._apply_action(p, action)
@@ -272,8 +272,8 @@ if __name__ == "__main__":
     for game_num in range(1, num_games + 1):
         print(f"\n--- Game {game_num}/{num_games} ---")
         game = PokerGame(players=[
-            Player("Bot1", is_bot=True, depth=2, mc_sims=200),
-            Player("Bot2", is_bot=True, depth=4, mc_sims=200)
+            Player("Bot1", is_bot=True, depth=2, mc_sims=500),
+            Player("Bot2", is_bot=True, depth=4, mc_sims=500)
         ])
         game.play_game(max_rounds=20)
         
@@ -292,15 +292,14 @@ if __name__ == "__main__":
     avg_bot2_money = total_bot2_money / num_games
 
     print(f"\n=== OVERALL AVERAGE STATS ({num_games} games) ===")
-    print(f"Average Bot1 wins: {avg_bot1_wins:.1f}")
-    print(f"Average Bot2 wins: {avg_bot2_wins:.1f}")
+    print(f"Average {game.players[0].name} wins: {avg_bot1_wins:.1f}")
+    print(f"Average {game.players[1].name} wins: {avg_bot2_wins:.1f}")
     print(f"Average Ties: {avg_ties:.1f}")
-    print(f"Average Bot1 money: ${avg_bot1_money:.1f}")
-    print(f"Average Bot2 money: ${avg_bot2_money:.1f}")
-
+    print(f"Average {game.players[0].name} money: ${avg_bot1_money:.1f}")
+    print(f"Average {game.players[1].name} money: ${avg_bot2_money:.1f}")
     if avg_bot1_money > avg_bot2_money:
-        print(f">>>>>>>>>>>> Bot1 wins overall on average! <<<<<<<<<<<")
+        print(f">>>>>>>>>>>> {game.players[0].name} wins overall on average! <<<<<<<<<<<")
     elif avg_bot2_money > avg_bot1_money:
-        print(f">>>>>>>>>>>> Bot2 wins overall on average! <<<<<<<<<<<")
+        print(f">>>>>>>>>>>> {game.players[1].name} wins overall on average! <<<<<<<<<<<")
     else:
         print("🤝 It's a tie on average!")
