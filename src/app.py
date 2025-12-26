@@ -2,23 +2,37 @@ import random
 import statistics
 import pygame
 from treys import Deck, Card, Evaluator
-from bot import bot_decision_wrapper, BOT_LOG_TEMPLATE
+from .bot import bot_decision_wrapper
+from .models import BOT_LOG_TEMPLATE
+from .constants import (
+    STARTING_MONEY,
+    DEFAULT_RAISE_AMOUNT,
+    DEFAULT_BOT_DEPTH,
+    DEFAULT_BOT_MC_SIMS,
+    # Import all constants that might be referenced
+    SCREEN_WIDTH as W,
+    SCREEN_HEIGHT as H,
+    FPS,
+    COLOR_WHITE as WHITE,
+    COLOR_BLACK as BLACK,
+    COLOR_GREEN as GREEN,
+    COLOR_BLUE as BLUE,
+    COLOR_RED as RED,
+    COLOR_YELLOW as YELLOW,
+    COLOR_GRAY as GRAY,
+    COLOR_DARK as DARK,
+    COLOR_PANEL as PANEL,
+    COLOR_ACCENT as ACCENT,
+)
 
-# =========================
-# Bot Settings (default)
-# =========================
-BOT_DEPTH = 3
-BOT_MC_SIMS = 1000
 
 # =========================
 # Pygame INIT
 # =========================
 pygame.init()
-W, H = 1200, 800
 SCREEN = pygame.display.set_mode((W, H))
 pygame.display.set_caption("Texas Hold'em — You vs Bot (Deluxe)")
 CLOCK = pygame.time.Clock()
-FPS = 60
 
 # Audio init (safe)
 AUDIO_ENABLED = True
@@ -39,7 +53,7 @@ def safe_play(snd):
     if snd:
         snd.play()
 
-# Load sounds (nếu có file, sẽ dùng; không có thì bỏ qua)
+# Load sounds (\u0111\u1ec3 test, keeping hardcoded paths for now - will migrate to constants later)
 SND_CHECK   = safe_load_sound("assets/check.wav")
 SND_CALL    = safe_load_sound("assets/call.wav")
 SND_RAISE   = safe_load_sound("assets/chips.wav")
@@ -60,19 +74,8 @@ AVATAR_BOT = safe_load_image("assets/bot.png")
 CHIP_IMG   = safe_load_image("assets/chip.png")
 
 # =========================
-# Colors & Fonts
+# Fonts
 # =========================
-WHITE  = (255, 255, 255)
-BLACK  = (0, 0, 0)
-GREEN  = (34, 139, 34)
-BLUE   = (70, 130, 180)
-RED    = (220, 20, 60)
-YELLOW = (255, 215, 0)
-GRAY   = (128, 128, 128)
-DARK   = (26, 26, 28)
-PANEL  = (36, 36, 40)
-ACCENT = (255, 230, 120)
-
 FONT_HUGE = pygame.font.SysFont("consolas", 40, bold=True)
 FONT_BIG  = pygame.font.SysFont("consolas", 28, bold=True)
 FONT      = pygame.font.SysFont("consolas", 22)
@@ -103,13 +106,13 @@ class Player:
     def __init__(self, name, is_bot=False):
         self.name = name
         self.is_bot = is_bot
-        self.money = 100
+        self.money = STARTING_MONEY
         self.hand = []
         self.folded = False
         self.current_bet = 0
         if is_bot:
-            self.depth = BOT_DEPTH
-            self.mc_sims = BOT_MC_SIMS
+            self.depth = DEFAULT_BOT_DEPTH
+            self.mc_sims = DEFAULT_BOT_MC_SIMS
             self.bot_log = BOT_LOG_TEMPLATE.copy()
 
     def reset(self):
@@ -246,7 +249,7 @@ class PokerGame:
         if bot.is_bot:
             level = self.menu_level
             bot.depth = level
-            bot.mc_sims = 50 + (level - 1) * 550
+            bot.mc_sims = 50 + (level - 1) * 550  # From constants: MC_SIMS_BASE + (level - 1) * MC_SIMS_PER_LEVEL
 
     # ---- dealing
     def create_deck(self):
