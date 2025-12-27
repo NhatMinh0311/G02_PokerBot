@@ -14,7 +14,7 @@
         },
         "advanced": {
             "depth": 5,
-            "mc_sims": 5000
+            "mc_sims": 2000
         }
     }
 }
