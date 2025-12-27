@@ -185,14 +185,6 @@ else:
 
 ---
 
-## 📚 Documentation
-
-- **[ALGORITHM.md](docs/ALGORITHM.md)** - Detailed algorithm explanation
-- **[walkthrough.md](docs/walkthrough.md)** - Phase 1 & 2 improvements
-- **[task.md](docs/task.md)** - Development checklist
-
----
-
 ## 🔧 Configuration
 
 ### Adjust Bot Difficulty
@@ -246,29 +238,5 @@ This project demonstrates:
 - **Parallel Programming** - Multithreaded processing
 - **AI Strategy** - Combining multiple decision factors
 - **Software Engineering** - Clean architecture with type safety
-
----
-
-## 🤝 Contributing
-
-This is an educational project. Feel free to:
-- Experiment with different AI strategies
-- Add new features (e.g., bluffing, position awareness)
-- Improve the UI
-- Optimize performance
-
----
-
-## 📝 License
-
-Educational project - feel free to use and modify.
-
----
-
-## 🙏 Credits
-
-- **treys** library for poker hand evaluation
-- **pygame** for game UI
-- Modern poker strategy concepts
 
 ---
