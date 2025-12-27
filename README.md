@@ -31,16 +31,6 @@ Bot có thể đưa ra các quyết định hợp lý trong trò chơi:
 
 ---
 
-### **Phase 2: Thuật toán Naive Bayes**
-
-**Mục tiêu:**  
-Bot có thể **quyết định số tiền nên cược** dựa trên:
-- Xác suất thắng ước tính từ các đặc trưng của bài hiện tại.
-- Mô hình học xác suất đơn giản (Naive Bayes) để ước lượng rủi ro và lợi ích.
-
----
-
 📌 **Kết quả mong đợi:**  
 Sau khi hoàn thành cả hai giai đoạn, bot có khả năng:
 - Đưa ra quyết định chiến lược (MiniMax)
-- Điều chỉnh mức cược thông minh (Naive Bayes)
