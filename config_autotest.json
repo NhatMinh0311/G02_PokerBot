@@ -3,18 +3,18 @@
     "settings": {
         "num_games": 10,
         "rounds_per_game": 20,
-        "starting_money": 100,
+        "starting_money": 1000,
         "small_blind": 2,
         "big_blind": 5
     },
     "bots": {
         "basic": {
-            "depth": 2,
+            "depth": 3,
             "mc_sims": 100
         },
         "advanced": {
             "depth": 5,
-            "mc_sims": 500
+            "mc_sims": 5000
         }
     }
 }
