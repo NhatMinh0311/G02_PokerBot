@@ -17,7 +17,7 @@ An intelligent poker bot that plays Texas Hold'em using **MiniMax algorithm with
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/NhatMinh0311/G02_PokerBot
 cd G02_PokerBot
 
 # Install dependencies (using uv)
