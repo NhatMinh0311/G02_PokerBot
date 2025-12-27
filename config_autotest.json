@@ -10,7 +10,7 @@
     "bots": {
         "basic": {
             "depth": 3,
-            "mc_sims": 100
+            "mc_sims": 500
         },
         "advanced": {
             "depth": 5,
